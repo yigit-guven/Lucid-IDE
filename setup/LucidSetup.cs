@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -49,9 +50,15 @@ namespace LucidInstaller
         public LucidSetupForm()
         {
             InitializeComponent();
+
+            // Force TLS 1.2 — GitHub dropped support for TLS 1.0/1.1
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
+
             _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "Lucid-IDE-Web-Installer");
-            
+            _httpClient.Timeout = TimeSpan.FromSeconds(60);
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "Lucid-IDE-Web-Installer/1.0");
+            _httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
+
             // Default target directory: %LocalAppData%\Programs\Lucid IDE
             string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             _targetDir = Path.Combine(localAppData, "Programs", "Lucid IDE");
@@ -550,6 +557,8 @@ namespace LucidInstaller
         [STAThread]
         public static void Main()
         {
+            // Ensure TLS 1.2 is active before any network calls
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new LucidSetupForm());

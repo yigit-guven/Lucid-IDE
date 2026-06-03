@@ -196,7 +196,7 @@ namespace LucidInstaller
             _lblWelcomeDesc  = MakeLabel(
                 "Local AI code intelligence — no subscriptions, no cloud,\nno telemetry. Everything runs on your machine.",
                 Theme.Body, Theme.Muted, new Point(40, 90));
-            _lblWelcomeVersion = MakeLabel("Version 1.0.0  ·  Windows x64", Theme.Small, Theme.Muted, new Point(40, 148));
+            _lblWelcomeVersion = MakeLabel("Version 1.0.1  ·  Windows x64", Theme.Small, Theme.Muted, new Point(40, 148));
 
             _btnNext1 = MakeButton("Install →", new Point(330, 295), new Size(130, 42), true);
             _btnNext1.Click += (s, e) => ShowPage(1);
@@ -495,7 +495,7 @@ namespace LucidInstaller
 
         private void ShowDonePage()
         {
-            string ver = string.IsNullOrEmpty(_installedVersion) ? "1.0.0" : _installedVersion;
+            string ver = string.IsNullOrEmpty(_installedVersion) ? "1.0.1" : _installedVersion;
             _lblDoneVersion.Text = "Lucid IDE v" + ver + " installed successfully";
             _btnLaunch4.Visible = _launchAfterInstall;
 

@@ -25,6 +25,8 @@
     "statusBar.background": "#cbdbe7",
     "statusBar.foreground": "#334155",
     "statusBar.border": "#b9cbd9",
+    "statusBar.noFolderBackground": "#cbdbe7",
+    "statusBar.debuggingBackground": "#cbdbe7",
     "editorGroupHeader.tabsBackground": "#e1edf5",
     "editorGroupHeader.tabsBorder": "#b9cbd9",
     "tab.activeBackground": "#f0f7fb",
@@ -85,7 +87,7 @@
         "storage.type.cs"
       ],
       "settings": {
-        "foreground": "#b91c1c"
+        "foreground": "#0f766e"
       }
     },
     {
@@ -95,7 +97,7 @@
         "storage.modifier"
       ],
       "settings": {
-        "foreground": "#b91c1c",
+        "foreground": "#0969da",
         "fontStyle": "bold"
       }
     },

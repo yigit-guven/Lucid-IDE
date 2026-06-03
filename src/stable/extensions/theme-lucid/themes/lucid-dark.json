@@ -1,60 +1,62 @@
 {
   "name": "Lucid Dark",
   "colors": {
-    "editor.background": "#0b0f19",
-    "editor.foreground": "#e6edf3",
-    "editor.lineHighlightBackground": "#161b26",
-    "editor.selectionBackground": "#1f293d",
-    "editor.inactiveSelectionBackground": "rgba(31, 41, 61, 0.5)",
+    "editor.background": "#030712",
+    "editor.foreground": "#f3f4f6",
+    "editor.lineHighlightBackground": "#0b1329",
+    "editor.selectionBackground": "#172554",
+    "editor.inactiveSelectionBackground": "rgba(23, 37, 84, 0.5)",
     "editorCursor.foreground": "#38bdf8",
     "editorWhitespace.foreground": "#334155",
-    "sideBar.background": "#111622",
+    "sideBar.background": "#080c18",
     "sideBar.foreground": "#8b949e",
-    "sideBar.border": "#1f293d",
+    "sideBar.border": "#111827",
     "sideBarTitle.foreground": "#e6edf3",
-    "sideBarSectionHeader.background": "#111622",
+    "sideBarSectionHeader.background": "#080c18",
     "sideBarSectionHeader.foreground": "#c9d1d9",
-    "sideBarSectionHeader.border": "#1f293d",
-    "activityBar.background": "#0b0f19",
+    "sideBarSectionHeader.border": "#111827",
+    "activityBar.background": "#030712",
     "activityBar.foreground": "#e6edf3",
     "activityBar.inactiveForeground": "#8b949e",
-    "activityBar.border": "#1f293d",
+    "activityBar.border": "#111827",
     "activityBar.activeBorder": "#38bdf8",
     "activityBarBadge.background": "#1d4ed8",
     "activityBarBadge.foreground": "#ffffff",
-    "statusBar.background": "#0b0f19",
+    "statusBar.background": "#030712",
     "statusBar.foreground": "#8b949e",
-    "statusBar.border": "#1f293d",
-    "editorGroupHeader.tabsBackground": "#111622",
-    "editorGroupHeader.tabsBorder": "#1f293d",
-    "tab.activeBackground": "#0b0f19",
+    "statusBar.border": "#111827",
+    "statusBar.noFolderBackground": "#030712",
+    "statusBar.debuggingBackground": "#030712",
+    "editorGroupHeader.tabsBackground": "#080c18",
+    "editorGroupHeader.tabsBorder": "#111827",
+    "tab.activeBackground": "#030712",
     "tab.activeForeground": "#e6edf3",
-    "tab.activeBorder": "#0b0f19",
+    "tab.activeBorder": "#030712",
     "tab.activeBorderTop": "#38bdf8",
-    "tab.inactiveBackground": "#111622",
+    "tab.inactiveBackground": "#080c18",
     "tab.inactiveForeground": "#8b949e",
-    "tab.border": "#1f293d",
-    "titleBar.activeBackground": "#0b0f19",
+    "tab.border": "#111827",
+    "titleBar.activeBackground": "#030712",
     "titleBar.activeForeground": "#e6edf3",
-    "titleBar.border": "#1f293d",
-    "input.background": "#161b26",
-    "input.border": "#1f293d",
+    "titleBar.border": "#111827",
+    "input.background": "#080c18",
+    "input.border": "#111827",
     "input.foreground": "#e6edf3",
     "input.placeholderForeground": "#484f58",
     "button.background": "#1d4ed8",
     "button.foreground": "#ffffff",
     "button.hoverBackground": "#2563eb",
     "focusBorder": "#38bdf8",
-    "list.activeSelectionBackground": "#1f293d",
+    "list.activeSelectionBackground": "#1e293b",
     "list.activeSelectionForeground": "#e6edf3",
     "list.hoverBackground": "rgba(255, 255, 255, 0.03)",
-    "list.inactiveSelectionBackground": "rgba(31, 41, 61, 0.5)",
-    "panel.background": "#0b0f19",
-    "panel.border": "#1f293d",
+    "list.inactiveSelectionBackground": "rgba(30, 41, 59, 0.5)",
+    "panel.background": "#030712",
+    "panel.border": "#111827",
     "panelTitle.activeBorder": "#38bdf8",
     "panelTitle.activeForeground": "#e6edf3",
     "panelTitle.inactiveForeground": "#8b949e",
-    "terminal.background": "#0b0f19",
+    "terminal.background": "#030712",
     "terminal.foreground": "#e6edf3"
   },
   "tokenColors": [
@@ -84,7 +86,7 @@
         "entity.name.type"
       ],
       "settings": {
-        "foreground": "#ff7b72"
+        "foreground": "#38bdf8"
       }
     },
     {
@@ -94,7 +96,7 @@
         "storage.modifier"
       ],
       "settings": {
-        "foreground": "#ff7b72",
+        "foreground": "#ff9e64",
         "fontStyle": "bold"
       }
     },
@@ -140,7 +142,7 @@
         "entity.other.inherited-class"
       ],
       "settings": {
-        "foreground": "#ff7b72"
+        "foreground": "#38bdf8"
       }
     }
   ]

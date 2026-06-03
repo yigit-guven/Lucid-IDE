@@ -5,16 +5,16 @@
 ## Table of Contents
 
 - [Sign in with GitHub](#signin-github)
-- [Accounts authentication](https://github.com/VSCodium/vscodium/blob/master/docs/accounts-authentication.md)
-- [How do I run VSCodium in portable mode?](#portable)
+- [Accounts authentication](https://github.com/yigit-guven/Lucid-IDE/blob/master/docs/accounts-authentication.md)
+- [How do I run Lucid IDE in portable mode?](#portable)
 - [How do I fix the default file manager?](#file-manager)
-- [How do I press and hold a key and have it repeat in VSCodium?](#press-and-hold)
-- [How do I open VSCodium from the terminal?](#terminal-support)
+- [How do I press and hold a key and have it repeat in Lucid IDE?](#press-and-hold)
+- [How do I open Lucid IDE from the terminal?](#terminal-support)
   - [From Linux .tar.gz](#from-linux-targz)
 
 ## <a id="signin-github"></a>Sign in with GitHub
 
-In VSCodium, `Sign in with GitHub` is using a Personal Access Token.<br />
+In Lucid IDE, `Sign in with GitHub` is using a Personal Access Token.<br />
 Follow the documentation https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token to create your token.<br />
 Select the scopes dependending on the extension which needs access to GitHub. (GitLens requires the `repo` scope.)
 
@@ -22,14 +22,14 @@ Select the scopes dependending on the extension which needs access to GitHub. (G
 
 If you are getting the error `Writing login information to the keychain failed with error 'The name org.freedesktop.secrets was not provided by any .service files'.`, you need to install the package `gnome-keyring`.
 
-## <a id="portable"></a>How do I run VSCodium in portable mode?
+## <a id="portable"></a>How do I run Lucid IDE in portable mode?
 You can follow the [Portable Mode instructions](https://code.visualstudio.com/docs/editor/portable) from the Visual Studio Code website.
 - **Windows** / **Linux** : the instructions can be followed as written.
-- **macOS** : portable mode is enabled by the existence of a specially named folder. For Visual Studio Code that folder name is `code-portable-data`. For VSCodium, that folder name is `codium-portable-data`. So to enable portable mode for VSCodium on Mac OS, follow the instructions outlined in the [link above](https://code.visualstudio.com/docs/editor/portable), but create a folder named `codium-portable-data` instead of `code-portable-data`.
+- **macOS** : portable mode is enabled by the existence of a specially named folder. For Visual Studio Code that folder name is `code-portable-data`. For Lucid IDE, that folder name is `codium-portable-data`. So to enable portable mode for Lucid IDE on Mac OS, follow the instructions outlined in the [link above](https://code.visualstudio.com/docs/editor/portable), but create a folder named `codium-portable-data` instead of `code-portable-data`.
 
 ## <a id="file-manager"></a>How do I fix the default file manager (Linux)?
 
-In some cases, VSCodium becomes the file manager used to open directories (instead of apps like Dolphin or Nautilus).<br />
+In some cases, Lucid IDE becomes the file manager used to open directories (instead of apps like Dolphin or Nautilus).<br />
 It's due to that no application was defined as the default file manager and so the system is using the latest capable application.
 
 To set the default app, create the file `~/.config/mimeapps.list` with the content like:
@@ -44,15 +44,15 @@ You can find your regular file manager with the command:
 inode/directory=codium.desktop;org.gnome.Nautilus.desktop;
 ```
 
-## <a id="press-and-hold"></a>How do I press and hold a key and have it repeat in VSCodium (Mac)?
+## <a id="press-and-hold"></a>How do I press and hold a key and have it repeat in Lucid IDE (Mac)?
 
-This is a common question for Visual Studio Code and the procedure is slightly different in VSCodium because the `defaults` path is different.
+This is a common question for Visual Studio Code and the procedure is slightly different in Lucid IDE because the `defaults` path is different.
 
 ```bash
-$ defaults write com.vscodium ApplePressAndHoldEnabled -bool false
+$ defaults write com.Lucid IDE ApplePressAndHoldEnabled -bool false
 ```
 
-## <a id="terminal-support"></a>How do I open VSCodium from the terminal?
+## <a id="terminal-support"></a>How do I open Lucid IDE from the terminal?
 
 For macOS and Windows:
 - Go to the command palette (View | Command Palette...)
@@ -60,7 +60,7 @@ For macOS and Windows:
 
 ![](https://user-images.githubusercontent.com/2707340/60140295-18338a00-9766-11e9-8fda-b525b6f15c13.png)
 
-This allows you to open files or directories in VSCodium directly from your terminal:
+This allows you to open files or directories in Lucid IDE directly from your terminal:
 
 ```bash
 ~/in-my-project $ codium . # open this directory
@@ -73,4 +73,5 @@ On Linux, when installed with a package manager, `codium` has been installed in 
 
 ### <a id="from-linux-targz"></a>From Linux .tar.gz
 
-When the archive `VSCodium-linux-<arch>-<version>.tar.gz` is extracted, the main entry point for VSCodium is `./bin/codium`.
+When the archive `Lucid IDE-linux-<arch>-<version>.tar.gz` is extracted, the main entry point for Lucid IDE is `./bin/codium`.
+

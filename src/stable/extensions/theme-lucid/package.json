@@ -1,0 +1,31 @@
+{
+  "name": "theme-lucid",
+  "displayName": "Lucid IDE Themes",
+  "description": "Custom color themes for Lucid IDE",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "contributes": {
+    "themes": [
+      {
+        "label": "Lucid Light Blue",
+        "uiTheme": "vs",
+        "path": "./themes/lucid-light-blue.json"
+      },
+      {
+        "label": "Lucid GitHub Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/lucid-github-dark.json"
+      }
+    ],
+    "configurationDefaults": {
+      "workbench.colorTheme": "Lucid GitHub Dark"
+    }
+  }
+}

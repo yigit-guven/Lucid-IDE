@@ -24,50 +24,50 @@ export VSCODE_NODEJS_URLROOT='/download/release'
 export VSCODE_NODEJS_URLSUFFIX=''
 
 if [[ "${VSCODE_ARCH}" == "x64" ]]; then
-  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="vscodium/vscodium-linux-build-agent:focal-devtoolset-x64"
+  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="yigit-guven/lucid-ide-linux-build-agent:focal-devtoolset-x64"
 
   export VSCODE_SKIP_SETUPENV=1
 elif [[ "${VSCODE_ARCH}" == "arm64" ]]; then
   EXPECTED_GLIBC_VERSION="2.30"
 
-  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="vscodium/vscodium-linux-build-agent:focal-devtoolset-arm64"
+  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="yigit-guven/lucid-ide-linux-build-agent:focal-devtoolset-arm64"
 
   export VSCODE_SKIP_SYSROOT=1
   export USE_GNUPP2A=1
 elif [[ "${VSCODE_ARCH}" == "armhf" ]]; then
   EXPECTED_GLIBC_VERSION="2.30"
 
-  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="vscodium/vscodium-linux-build-agent:focal-devtoolset-armhf"
+  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="yigit-guven/lucid-ide-linux-build-agent:focal-devtoolset-armhf"
 
   export VSCODE_SKIP_SYSROOT=1
   export USE_GNUPP2A=1
 elif [[ "${VSCODE_ARCH}" == "ppc64le" ]]; then
   GLIBC_VERSION="2.28"
 
-  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="vscodium/vscodium-linux-build-agent:focal-devtoolset-ppc64le"
+  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="yigit-guven/lucid-ide-linux-build-agent:focal-devtoolset-ppc64le"
   VSCODE_SYSROOT_PREFIX="-glibc-${GLIBC_VERSION}"
 
-  export VSCODE_SYSROOT_REPOSITORY='VSCodium/vscode-linux-build-agent'
+  export VSCODE_SYSROOT_REPOSITORY='yigit-guven/vscode-linux-build-agent'
   export VSCODE_SYSROOT_VERSION='20240129-253798'
 elif [[ "${VSCODE_ARCH}" == "riscv64" ]]; then
   NODE_VERSION="22.21.1"
-  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="vscodium/vscodium-linux-build-agent:focal-devtoolset-riscv64"
+  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="yigit-guven/lucid-ide-linux-build-agent:focal-devtoolset-riscv64"
 
   export VSCODE_SKIP_SETUPENV=1
   export VSCODE_NODEJS_SITE='https://unofficial-builds.nodejs.org'
 elif [[ "${VSCODE_ARCH}" == "loong64" ]]; then
   NODE_VERSION="22.21.1"
-  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="vscodium/vscodium-linux-build-agent:beige-devtoolset-loong64"
+  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="yigit-guven/lucid-ide-linux-build-agent:beige-devtoolset-loong64"
 
   export VSCODE_SKIP_SETUPENV=1
   export VSCODE_NODEJS_SITE='https://unofficial-builds.nodejs.org'
 elif [[ "${VSCODE_ARCH}" == "s390x" ]]; then
   GLIBC_VERSION="2.28"
 
-  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="vscodium/vscodium-linux-build-agent:focal-devtoolset-s390x"
+  VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME="yigit-guven/lucid-ide-linux-build-agent:focal-devtoolset-s390x"
   VSCODE_SYSROOT_PREFIX="-glibc-${GLIBC_VERSION}"
 
-  export VSCODE_SYSROOT_REPOSITORY='VSCodium/vscode-linux-build-agent'
+  export VSCODE_SYSROOT_REPOSITORY='yigit-guven/vscode-linux-build-agent'
   export VSCODE_SYSROOT_VERSION='20241108'
 fi
 

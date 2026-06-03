@@ -1,6 +1,6 @@
 <!-- order: 35 -->
 
-# How to build VSCodium
+# How to build Lucid IDE
 
 ## Table of Contents
 
@@ -144,7 +144,7 @@ The script `dev/build.sh` provides several flags:
 
 ## <a id="build-ci"></a>Build for CI/Downstream
 
-Here is the base script to build VSCodium:
+Here is the base script to build Lucid IDE:
 
 ```bash
 # Export necessary environment variables
@@ -162,9 +162,9 @@ export RELEASE_VERSION="${version}"
 
 To go further, you should look at how we build it:
 
-- Linux: https://github.com/VSCodium/vscodium/blob/master/.github/workflows/stable-linux.yml
-- macOS: https://github.com/VSCodium/vscodium/blob/master/.github/workflows/stable-macos.yml
-- Windows: https://github.com/VSCodium/vscodium/blob/master/.github/workflows/stable-windows.yml
+- Linux: https://github.com/yigit-guven/Lucid-IDE/blob/master/.github/workflows/stable-linux.yml
+- macOS: https://github.com/yigit-guven/Lucid-IDE/blob/master/.github/workflows/stable-macos.yml
+- Windows: https://github.com/yigit-guven/Lucid-IDE/blob/master/.github/workflows/stable-windows.yml
 
 The `./dev/build.sh` script is for development purpose and must be avoided for a packaging purpose.
 
@@ -190,7 +190,7 @@ review-tools.snap-review --allow-classic codium*.snap
 
 - run `./dev/build.sh`, if a patch is failing then,
 - run `./dev/update_patches.sh`
-- when the script pauses at `Press any key when the conflict have been resolved...`, open `vscode` directory in **VSCodium**
+- when the script pauses at `Press any key when the conflict have been resolved...`, open `vscode` directory in **Lucid IDE**
 - fix all the `*.rej` files
 - run `npm run watch`
 - run `./script/code.sh` until everything is ok
@@ -200,7 +200,7 @@ review-tools.snap-review --allow-classic codium*.snap
 
 - run `./dev/build.sh`, if a patch is failing then,
 - run `./dev/patch.sh <name>.patch` where `<name>.patch` is the failed patch
-- open `vscode` directory in a new **VSCodium**'s window
+- open `vscode` directory in a new **Lucid IDE**'s window
 - fix all the `*.rej` files
 - run `npm run watch`
 - run `./script/code.sh` until everything is ok
@@ -213,3 +213,4 @@ To run `icons/build_icons.sh`, you will need:
 - imagemagick
 - png2icns (`npm install png2icns -g`)
 - librsvg
+

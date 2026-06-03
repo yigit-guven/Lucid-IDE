@@ -1,0 +1,60 @@
+{
+  "name": "lucid-ai",
+  "displayName": "Lucid AI Chat",
+  "description": "Integrated local AI model manager and chat assistant for Lucid IDE",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onView:lucid.chatView"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "lucid-ai-sidebar",
+          "title": "Lucid AI",
+          "icon": "$(sparkle)"
+        }
+      ]
+    },
+    "views": {
+      "lucid-ai-sidebar": [
+        {
+          "type": "webview",
+          "id": "lucid.chatView",
+          "name": "Lucid AI Chat",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "lucid.chat.clear",
+        "title": "Clear Chat History",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "lucid.chat.focus",
+        "title": "Focus Chat Input"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "lucid.chat.clear",
+          "when": "view == lucid.chatView",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.1.3"
+  }
+}

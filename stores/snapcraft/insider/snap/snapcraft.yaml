@@ -1,8 +1,8 @@
-name: codium-insiders
-adopt-info: codium-insiders
-summary: Code editing. Redefined.
+name: lucidide-insiders
+adopt-info: lucidide-insiders
+summary: Lucid IDE - Insiders. Code editing with local AI.
 description: |
-  Binary releases of Visual Studio Code - Insiders without branding/telemetry/licensing
+  Lucid IDE Insiders — a free/libre fork of VS Code Insiders with integrated local AI model support.
 
 base: core20
 grade: stable
@@ -10,12 +10,12 @@ confinement: classic
 compression: lzo
 
 parts:
-  codium-insiders:
+  lucidide-insiders:
     plugin: nil
     override-build: |
       set -eu
       # Get .deb url
-      wget --quiet https://api.github.com/repos/VSCodium/vscodium-insiders/releases -O latest.json
+      wget --quiet https://api.github.com/repos/yigit-guven/Lucid-IDE/releases -O latest.json
       VERSION=$( jq -r 'sort_by(.tag_name|split("-")[0]|split(".")|map(tonumber))|last.tag_name' latest.json )
       DEB_URL=$( jq -r 'map(select(.tag_name == "'"${VERSION}"'"))|first.assets[].browser_download_url|select(endswith("'"_${SNAPCRAFT_TARGET_ARCH}.deb"'"))' latest.json )
       DEB_NAME=$( basename "${DEB_URL}" )
@@ -30,12 +30,12 @@ parts:
       snapcraftctl set-version "${VERSION/-*/}"
       # Prepare GUI
       mkdir -p "${SNAPCRAFT_PART_INSTALL}/meta/gui"
-      cp "${SNAPCRAFT_PART_INSTALL}/usr/share/codium-insiders/resources/app/resources/linux/code.png" "${SNAPCRAFT_PART_INSTALL}/meta/gui/codium-insiders.png"
+      cp "${SNAPCRAFT_PART_INSTALL}/usr/share/lucid-insiders/resources/app/resources/linux/code.png" "${SNAPCRAFT_PART_INSTALL}/meta/gui/lucidide-insiders.png"
       # Update paths
-      sed -i 's|Exec=/usr/share/codium/codium-insiders|Exec=codium-insiders --force-user-env|g' "${SNAPCRAFT_PART_INSTALL}/usr/share/applications/codium-insiders.desktop"
-      sed -i 's|Exec=/usr/share/codium/codium-insiders|Exec=codium-insiders --force-user-env|g' "${SNAPCRAFT_PART_INSTALL}/usr/share/applications/codium-insiders-url-handler.desktop"
-      sed -i 's|Icon=vscodium-insiders|Icon=${SNAP}/meta/gui/codium-insiders.png|g' "${SNAPCRAFT_PART_INSTALL}/usr/share/applications/codium-insiders.desktop"
-      sed -i 's|Icon=vscodium-insiders|Icon=${SNAP}/meta/gui/codium-insiders.png|g' "${SNAPCRAFT_PART_INSTALL}/usr/share/applications/codium-insiders-url-handler.desktop"
+      sed -i 's|Exec=/usr/share/lucid/lucid-insiders|Exec=lucidide-insiders --force-user-env|g' "${SNAPCRAFT_PART_INSTALL}/usr/share/applications/lucidide-insiders.desktop"
+      sed -i 's|Exec=/usr/share/lucid/lucid-insiders|Exec=lucidide-insiders --force-user-env|g' "${SNAPCRAFT_PART_INSTALL}/usr/share/applications/lucidide-insiders-url-handler.desktop"
+      sed -i 's|Icon=lucidide-insiders|Icon=${SNAP}/meta/gui/lucidide-insiders.png|g' "${SNAPCRAFT_PART_INSTALL}/usr/share/applications/lucidide-insiders.desktop"
+      sed -i 's|Icon=lucidide-insiders|Icon=${SNAP}/meta/gui/lucidide-insiders.png|g' "${SNAPCRAFT_PART_INSTALL}/usr/share/applications/lucidide-insiders-url-handler.desktop"
     build-packages:
       - wget
       - jq
@@ -76,7 +76,7 @@ parts:
       - -usr/share/icons
       - -usr/share/lintian
       - -usr/share/man
-      - -usr/share/codium-insiders/chrome-sandbox
+      - -usr/share/lucid-insiders/chrome-sandbox
     build-attributes:
       - enable-patchelf
     override-prime: |
@@ -89,16 +89,16 @@ parts:
 
   electron-launch:
     after:
-      - codium-insiders
+      - lucidide-insiders
     plugin: dump
     source: snap/local/bin
 
 apps:
-  codium:
-    command: electron-launch $SNAP/usr/share/codium-insiders/bin/codium-insiders --no-sandbox
-    desktop: usr/share/applications/codium-insiders.desktop
-    common-id: codium-insiders.desktop
+  lucidide-insiders:
+    command: electron-launch $SNAP/usr/share/lucid-insiders/bin/lucid-insiders --no-sandbox
+    desktop: usr/share/applications/lucidide-insiders.desktop
+    common-id: lucidide-insiders.desktop
 
   url-handler:
-    command: electron-launch $SNAP/usr/share/codium-insiders/bin/codium-insiders --open-url --no-sandbox
-    desktop: usr/share/applications/codium-insiders-url-handler.desktop
+    command: electron-launch $SNAP/usr/share/lucid-insiders/bin/lucid-insiders --open-url --no-sandbox
+    desktop: usr/share/applications/lucidide-insiders-url-handler.desktop

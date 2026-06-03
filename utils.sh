@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-APP_NAME="${APP_NAME:-VSCodium}"
+APP_NAME="${APP_NAME:-LucidIDE}"
 APP_NAME_LC="$( echo "${APP_NAME}" | awk '{print tolower($0)}' )"
-ASSETS_REPOSITORY="${ASSETS_REPOSITORY:-VSCodium/vscodium}"
-BINARY_NAME="${BINARY_NAME:-codium}"
-GH_REPO_PATH="${GH_REPO_PATH:-VSCodium/vscodium}"
-ORG_NAME="${ORG_NAME:-VSCodium}"
+ASSETS_REPOSITORY="${ASSETS_REPOSITORY:-yigit-guven/Lucid-IDE}"
+BINARY_NAME="${BINARY_NAME:-lucid}"
+GH_REPO_PATH="${GH_REPO_PATH:-yigit-guven/Lucid-IDE}"
+ORG_NAME="${ORG_NAME:-yigit-guven}"
 TUNNEL_APP_NAME="${TUNNEL_APP_NAME:-"${BINARY_NAME}-tunnel"}"
 
 if [[ "${VSCODE_QUALITY}" == "insider" ]]; then

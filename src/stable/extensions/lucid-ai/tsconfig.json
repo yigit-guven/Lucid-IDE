@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2022",
+    "outDir": "out",
+    "lib": [
+      "es2022",
+      "dom"
+    ],
+    "sourceMap": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "strictNullChecks": true,
+    "rootDir": "src"
+  },
+  "exclude": [
+    "node_modules",
+    "out"
+  ]
+}

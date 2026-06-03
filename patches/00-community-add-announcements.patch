@@ -75,7 +75,7 @@ index 01778b2..615828d 100644
 +			const showExtras = this.configurationService.getValue<boolean>('workbench.welcomePage.extraAnnouncements');
 +
 +			if (showExtras) {
-+				const branch = this.productService.quality === 'insider' ? 'insider' : 'master';
++				const branch = this.productService.quality === 'insider' ? 'insider' : 'main';
 +				await fetch(`https://raw.githubusercontent.com/!!GH_REPO_PATH!!/${branch}/announcements-extra.json`)
 +					.then(async res => {
 +						if (res.ok) {

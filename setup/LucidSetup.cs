@@ -73,9 +73,12 @@ namespace LucidInstaller
         // Page 3
         private Label          _lblStep;
         private FlatProgressBar _progressBar;
+        private Label          _lblPercent;
         private Label          _lblProgressDetail;
         private Label          _lblSpeed;
         private Label          _lblStepIndicator;
+        private Button         _btnCancel3;
+        private CancellationTokenSource _cts;
 
         // Page 4
         private Label  _lblDoneTitle, _lblDoneVersion, _lblDoneDesc;
@@ -108,9 +111,7 @@ namespace LucidInstaller
 
             try
             {
-                string icoPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "lucid.ico");
-                if (File.Exists(icoPath))
-                    this.Icon = new Icon(icoPath);
+                this.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             }
             catch { }
 
@@ -136,11 +137,9 @@ namespace LucidInstaller
             _iconBox = new PictureBox { Size = new Size(20, 20), Location = new Point(12, 10), BackColor = Color.Transparent, SizeMode = PictureBoxSizeMode.Zoom };
             try
             {
-                string icoPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "lucid.ico");
-                if (File.Exists(icoPath))
+                if (this.Icon != null)
                 {
-                    var ico = new Icon(icoPath, 20, 20);
-                    _iconBox.Image = ico.ToBitmap();
+                    _iconBox.Image = this.Icon.ToBitmap();
                 }
             }
             catch { }
@@ -199,21 +198,13 @@ namespace LucidInstaller
                 Theme.Body, Theme.Muted, new Point(40, 90));
             _lblWelcomeVersion = MakeLabel("Version 1.0.0  ·  Windows x64", Theme.Small, Theme.Muted, new Point(40, 148));
 
-            // Separator
-            var sep = new Panel { Location = new Point(40, 170), Size = new Size(480, 1), BackColor = Theme.Border };
-
-            var lblTarget = MakeLabel($"Will install to:  {_targetDir}", Theme.Small, Theme.Muted, new Point(40, 185));
-            lblTarget.AutoSize = false;
-            lblTarget.Size = new Size(480, 16);
-            lblTarget.ForeColor = Theme.Muted;
-
             _btnNext1 = MakeButton("Install →", new Point(330, 295), new Size(130, 42), true);
             _btnNext1.Click += (s, e) => ShowPage(1);
 
             _btnExit1 = MakeButton("Cancel", new Point(210, 295), new Size(110, 42), false);
             _btnExit1.Click += (s, e) => Close();
 
-            AddToPage(new Control[] { _lblWelcomeTitle, _lblWelcomeDesc, _lblWelcomeVersion, sep, lblTarget, _btnNext1, _btnExit1 }, 1);
+            AddToPage(new Control[] { _lblWelcomeTitle, _lblWelcomeDesc, _lblWelcomeVersion, _btnNext1, _btnExit1 }, 1);
         }
 
         // ── Page 2: Options ──────────────────────────────────────────────────
@@ -267,8 +258,11 @@ namespace LucidInstaller
             _lblStep = MakeLabel("Preparing…", Theme.Body, Theme.Accent, new Point(40, 68));
             _lblStep.Tag = "p3";
 
-            _progressBar = new FlatProgressBar { Location = new Point(40, 100), Size = new Size(480, 8) };
+            _progressBar = new FlatProgressBar { Location = new Point(40, 100), Size = new Size(410, 8) };
             _progressBar.Tag = "p3";
+
+            _lblPercent = MakeLabel("0%", Theme.Body, Theme.Accent, new Point(460, 94));
+            _lblPercent.Tag = "p3";
 
             _lblProgressDetail = MakeLabel("", Theme.Small, Theme.Muted, new Point(40, 118));
             _lblProgressDetail.Tag = "p3";
@@ -286,7 +280,17 @@ namespace LucidInstaller
             _lblStepIndicator.AutoSize = false;
             _lblStepIndicator.Size = new Size(480, 100);
 
-            AddToPage(new Control[] { title, _lblStep, _progressBar, _lblProgressDetail, _lblSpeed, _lblStepIndicator }, 3);
+            _btnCancel3 = MakeButton("Cancel", new Point(390, 270), new Size(130, 42), false);
+            _btnCancel3.Tag = "p3";
+            _btnCancel3.Click += (s, e) =>
+            {
+                if (MessageBox.Show("Are you sure you want to cancel the installation?", "Lucid IDE Setup", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    _cts?.Cancel();
+                }
+            };
+
+            AddToPage(new Control[] { title, _lblStep, _progressBar, _lblPercent, _lblProgressDetail, _lblSpeed, _lblStepIndicator, _btnCancel3 }, 3);
         }
 
         // ── Page 4: Done ─────────────────────────────────────────────────────
@@ -347,6 +351,48 @@ namespace LucidInstaller
             _targetDir = _txtInstallPath.Text.Trim();
             if (string.IsNullOrEmpty(_targetDir)) { MessageBox.Show("Please choose an install location."); return; }
 
+            // Check if already installed
+            string exePath = Path.Combine(_targetDir, "Lucid IDE.exe");
+            if (File.Exists(exePath))
+            {
+                var result = MessageBox.Show(
+                    "Lucid IDE is already installed in this folder.\n\nDo you want to delete the installed version? Are you sure?",
+                    "Lucid IDE Setup",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning
+                );
+                if (result == DialogResult.Yes)
+                {
+                    try
+                    {
+                        // Try to close running instances first
+                        foreach (var process in Process.GetProcessesByName("Lucid IDE"))
+                        {
+                            try { process.Kill(); process.WaitForExit(1000); } catch { }
+                        }
+                        if (Directory.Exists(_targetDir))
+                        {
+                            Directory.Delete(_targetDir, true);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(
+                            "Failed to delete the existing installation. Please make sure Lucid IDE is not running and try again.\n\nError: " + ex.Message,
+                            "Lucid IDE Setup",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                        return;
+                    }
+                }
+                else
+                {
+                    // User said No, abort installation and stay on options page
+                    return;
+                }
+            }
+
             _createDesktopShortcut    = _chkDesktop.Checked;
             _createStartMenuShortcut  = _chkStartMenu.Checked;
             _launchAfterInstall       = _chkLaunch.Checked;
@@ -356,6 +402,9 @@ namespace LucidInstaller
             _btnBack2.Enabled = false;
             ShowPage(2);
 
+            _cts = new CancellationTokenSource();
+            string tempZip = Path.Combine(Path.GetTempPath(), "LucidIDE_setup.zip");
+
             try
             {
                 // Step 1: Query GitHub
@@ -364,14 +413,19 @@ namespace LucidInstaller
                 if (string.IsNullOrEmpty(downloadUrl))
                     throw new Exception("No win32-x64 release found on GitHub. Make sure a release has been published.");
 
+                _cts.Token.ThrowIfCancellationRequested();
+
                 // Step 2: Download
-                string tempZip = Path.Combine(Path.GetTempPath(), "LucidIDE_setup.zip");
                 SetStep("Downloading Lucid IDE…", 5);
-                await DownloadWithProgress(downloadUrl, tempZip);
+                await DownloadWithProgress(downloadUrl, tempZip, _cts.Token);
+
+                _cts.Token.ThrowIfCancellationRequested();
 
                 // Step 3: Extract
                 SetStep("Extracting files…", 82);
-                await ExtractWithProgress(tempZip, _targetDir);
+                await ExtractWithProgress(tempZip, _targetDir, _cts.Token);
+
+                _cts.Token.ThrowIfCancellationRequested();
 
                 // Step 4: Shortcuts
                 SetStep("Creating shortcuts…", 96);
@@ -403,10 +457,39 @@ namespace LucidInstaller
             catch (Exception ex)
             {
                 _installing = false;
-                MessageBox.Show("Installation failed:\n\n" + ex.Message, "Lucid IDE Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                
+                // Clean up temp files if cancelled
+                if (_cts != null && _cts.IsCancellationRequested)
+                {
+                    try { if (File.Exists(tempZip)) File.Delete(tempZip); } catch { }
+                    try
+                    {
+                        if (Directory.Exists(_targetDir))
+                        {
+                            foreach (var process in Process.GetProcessesByName("Lucid IDE"))
+                            {
+                                try { process.Kill(); process.WaitForExit(1000); } catch { }
+                            }
+                            Directory.Delete(_targetDir, true);
+                        }
+                    }
+                    catch { }
+
+                    MessageBox.Show("Installation was cancelled.", "Lucid IDE Setup", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show("Installation failed:\n\n" + ex.Message, "Lucid IDE Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+
                 ShowPage(1);
                 _btnInstall2.Enabled = true;
                 _btnBack2.Enabled = true;
+            }
+            finally
+            {
+                _cts?.Dispose();
+                _cts = null;
             }
         }
 
@@ -430,6 +513,7 @@ namespace LucidInstaller
             {
                 _lblStep.Text = label;
                 _progressBar.Value = progress;
+                _lblPercent.Text = progress + "%";
             }));
         }
 
@@ -461,9 +545,9 @@ namespace LucidInstaller
         }
 
         // ── Download with speed + progress ───────────────────────────────────
-        private async Task DownloadWithProgress(string url, string dest)
+        private async Task DownloadWithProgress(string url, string dest, CancellationToken token)
         {
-            using (var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead))
+            using (var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token))
             {
                 response.EnsureSuccessStatusCode();
                 long? total = response.Content.Headers.ContentLength;
@@ -475,9 +559,10 @@ namespace LucidInstaller
                     int bytes;
                     var start = DateTime.Now;
 
-                    while ((bytes = await src.ReadAsync(buf, 0, buf.Length)) > 0)
+                    while ((bytes = await src.ReadAsync(buf, 0, buf.Length, token)) > 0)
                     {
-                        await file.WriteAsync(buf, 0, bytes);
+                        token.ThrowIfCancellationRequested();
+                        await file.WriteAsync(buf, 0, bytes, token);
                         read += bytes;
 
                         if (total.HasValue)
@@ -492,8 +577,21 @@ namespace LucidInstaller
                             this.BeginInvoke((Action)(() =>
                             {
                                 _progressBar.Value = bar;
+                                _lblPercent.Text = bar + "%";
                                 _lblProgressDetail.Text = $"Downloading:  {dlMB:F1} MB  /  {totMB:F1} MB";
-                                _lblSpeed.Text = speed > 0 ? $"{speed:F1} MB/s  ({(int)(pct * 100)}%)" : "";
+                                _lblSpeed.Text = speed > 0 ? $"{speed:F1} MB/s" : "";
+                            }));
+                        }
+                        else
+                        {
+                            double dlMB    = read / (1024.0 * 1024.0);
+                            double elapsed = (DateTime.Now - start).TotalSeconds;
+                            double speed   = elapsed > 0.5 ? (read / 1048576.0) / elapsed : 0;
+
+                            this.BeginInvoke((Action)(() =>
+                            {
+                                _lblProgressDetail.Text = $"Downloading:  {dlMB:F1} MB";
+                                _lblSpeed.Text = speed > 0 ? $"{speed:F1} MB/s" : "";
                             }));
                         }
                     }
@@ -502,7 +600,7 @@ namespace LucidInstaller
         }
 
         // ── Extraction with per-file progress ────────────────────────────────
-        private Task ExtractWithProgress(string zipPath, string destDir)
+        private Task ExtractWithProgress(string zipPath, string destDir, CancellationToken token)
         {
             return Task.Run(() =>
             {
@@ -519,6 +617,7 @@ namespace LucidInstaller
 
                     foreach (var entry in archive.Entries)
                     {
+                        token.ThrowIfCancellationRequested();
                         string destPath = Path.Combine(destDir, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
 
                         if (entry.FullName.EndsWith("/"))
@@ -538,12 +637,13 @@ namespace LucidInstaller
                         this.BeginInvoke((Action)(() =>
                         {
                             _progressBar.Value = bar;
+                            _lblPercent.Text = bar + "%";
                             _lblProgressDetail.Text = $"Extracting file {done} of {total}";
                             _lblSpeed.Text = "";
                         }));
                     }
                 }
-            });
+            }, token);
         }
 
         // ── Shortcuts ────────────────────────────────────────────────────────
@@ -571,9 +671,7 @@ namespace LucidInstaller
                 shortcut.TargetPath       = exePath;
                 shortcut.WorkingDirectory = workDir;
                 shortcut.Description      = "Lucid IDE — Local AI Code Editor";
-
-                string icoPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "lucid.ico");
-                if (File.Exists(icoPath)) shortcut.IconLocation = icoPath + ",0";
+                shortcut.IconLocation     = exePath + ",0";
                 shortcut.Save();
             }
             catch { }

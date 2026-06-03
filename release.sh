@@ -56,6 +56,43 @@ if [[ $( gh release view "${RELEASE_VERSION}" --repo "${ASSETS_REPOSITORY}" 2>&1
   fi
 fi
 
+# Update announcements-extra.json
+if [[ -n "${RELEASE_VERSION}" ]] && [[ -n "${ASSETS_REPOSITORY}" ]]; then
+  echo "Updating announcements-extra.json for release ${RELEASE_VERSION}..."
+
+  NEW_ENTRY=$(jq -n \
+    --arg id "${RELEASE_VERSION}" \
+    --arg title "Lucid IDE ${RELEASE_VERSION} released!" \
+    --arg url "https://github.com/${ASSETS_REPOSITORY}/releases/tag/${RELEASE_VERSION}" \
+    '{id: $id, title: $title, url: $url}')
+
+  if [[ ! -f "announcements-extra.json" ]] || [[ ! -s "announcements-extra.json" ]]; then
+    echo "[]" > announcements-extra.json
+  fi
+
+  jq --argjson new "$NEW_ENTRY" \
+     'if any(.[]; .id == $new.id) then . else [$new] + . end' \
+     announcements-extra.json > announcements-extra.json.tmp && mv announcements-extra.json.tmp announcements-extra.json
+
+  if [[ -n "${GITHUB_TOKEN}" ]]; then
+    git config user.name "github-actions[bot]"
+    git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+    git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${ASSETS_REPOSITORY}.git"
+    git add announcements-extra.json
+    git commit -m "Update announcements-extra.json for release ${RELEASE_VERSION} [skip ci]" || echo "No changes to announcements-extra.json"
+
+    # Push with retry
+    for i in {1..5}; do
+      if git push origin HEAD; then
+        break
+      fi
+      git pull --rebase origin HEAD
+    done
+  else
+    echo "Skipping push because GITHUB_TOKEN is not defined"
+  fi
+fi
+
 cd assets
 
 set +e

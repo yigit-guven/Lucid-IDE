@@ -1,6 +1,6 @@
 <div id="lucidide-logo" align="center">
     <br />
-    <img src="./icons/stable/codium_cnl.svg" alt="Lucid IDE Logo" width="200"/>
+    <img src="./icons/stable/codium_clt.svg" alt="Lucid IDE Logo" width="200"/>
     <h1>Lucid IDE</h1>
     <h3>Free/Libre VS Code Binaries with Integrated Local AI</h3>
 </div>

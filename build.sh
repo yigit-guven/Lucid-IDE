@@ -48,7 +48,11 @@ if [[ "${SHOULD_BUILD}" == "yes" ]]; then
         SHOULD_BUILD_REH_WEB="no"
       fi
 
-      . ../build_cli.sh
+      if command -v rustup &> /dev/null; then
+        . ../build_cli.sh
+      else
+        echo "INFO: rustup not found, skipping CLI build (editor will still work)."
+      fi
     fi
 
     VSCODE_PLATFORM="win32"

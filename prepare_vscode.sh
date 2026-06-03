@@ -208,14 +208,23 @@ fi
 
 node build/npm/preinstall.ts
 
+echo '<Project>
+  <PropertyGroup Label="Configuration">
+    <SpectreMitigation>false</SpectreMitigation>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ForceImportAfterCppProps>$(MSBuildThisFileDirectory)..\DisableSpectre.props</ForceImportAfterCppProps>
+  </PropertyGroup>
+</Project>' > Directory.Build.props
+
 mv .npmrc .npmrc.bak
 cp ../npmrc .npmrc
 
 for i in {1..5}; do # try 5 times
   if [[ "${CI_BUILD}" != "no" && "${OS_NAME}" == "osx" ]]; then
-    CXX=clang++ npm ci && break
+    CXX=clang++ npm install --no-audit --no-fund && break
   else
-    npm ci && break
+    npm install --no-audit --no-fund && break
   fi
 
   if [[ $i == 5 ]]; then
@@ -292,6 +301,12 @@ elif [[ "${OS_NAME}" == "windows" ]]; then
   # code.iss
   sed -i 's|https://code.visualstudio.com|https://lucidide.dev|' build/win32/code.iss
   sed -i 's|Microsoft Corporation|Lucid IDE contributors|' build/win32/code.iss
+
+  # patch gulpfile for rcedit robustness
+  node ../dev/patch_gulpfile.js
 fi
+
+replace 's/build_from_source="true"/build_from_source="false"/' remote/.npmrc
+replace 's/build_from_source="true"/build_from_source="false"/' build/.npmrc
 
 cd ..

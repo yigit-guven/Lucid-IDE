@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup Label="Configuration">
+    <SpectreMitigation>false</SpectreMitigation>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ForceImportAfterCppProps>$(MSBuildThisFileDirectory)DisableSpectre.props</ForceImportAfterCppProps>
+  </PropertyGroup>
+</Project>

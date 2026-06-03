@@ -89,7 +89,7 @@ namespace LucidInstaller
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11;
             _http = new HttpClient();
             _http.Timeout = TimeSpan.FromSeconds(90);
-            _http.DefaultRequestHeaders.Add("User-Agent", "Lucid-IDE-Installer/1.0");
+            _http.DefaultRequestHeaders.Add("User-Agent", "Lucid-IDE-Installer/" + BuildInfo.Version);
             _http.DefaultRequestHeaders.Add("Accept",     "application/vnd.github+json");
 
             string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -196,7 +196,7 @@ namespace LucidInstaller
             _lblWelcomeDesc  = MakeLabel(
                 "Local AI code intelligence — no subscriptions, no cloud,\nno telemetry. Everything runs on your machine.",
                 Theme.Body, Theme.Muted, new Point(40, 90));
-            _lblWelcomeVersion = MakeLabel("Version 1.0.1  ·  Windows x64", Theme.Small, Theme.Muted, new Point(40, 148));
+            _lblWelcomeVersion = MakeLabel("Version " + BuildInfo.Version + "  ·  Windows x64", Theme.Small, Theme.Muted, new Point(40, 148));
 
             _btnNext1 = MakeButton("Install →", new Point(330, 295), new Size(130, 42), true);
             _btnNext1.Click += (s, e) => ShowPage(1);
@@ -495,7 +495,7 @@ namespace LucidInstaller
 
         private void ShowDonePage()
         {
-            string ver = string.IsNullOrEmpty(_installedVersion) ? "1.0.1" : _installedVersion;
+            string ver = string.IsNullOrEmpty(_installedVersion) ? BuildInfo.Version : _installedVersion;
             _lblDoneVersion.Text = "Lucid IDE v" + ver + " installed successfully";
             _btnLaunch4.Visible = _launchAfterInstall;
 

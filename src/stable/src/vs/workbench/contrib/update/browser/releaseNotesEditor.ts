@@ -213,6 +213,9 @@ export class ReleaseNotesManager extends Disposable {
 					} catch {
 						responseText = await asTextOrError(await this._requestService.request({ url: latestUrl, callSite: 'releaseNotesEditor.fetchReleaseNotes' }, CancellationToken.None));
 					}
+					if (!responseText) {
+						throw new Error('Release notes response was empty');
+					}
 					const releaseObj = JSON.parse(responseText);
 					text = releaseObj.body;
 					if (text) {

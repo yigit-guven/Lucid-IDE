@@ -3,7 +3,7 @@
   "displayName": "Lucid IDE Themes",
   "description": "Custom color themes for Lucid IDE",
   "version": "1.0.0",
-  "publisher": "Yigit Güven",
+  "publisher": "yigit-guven",
   "license": "MIT",
   "engines": {
     "vscode": "^1.80.0"

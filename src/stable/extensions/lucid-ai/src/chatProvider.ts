@@ -268,7 +268,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 <link href="${styleResetUri}" rel="stylesheet">
                 <link href="${styleVSCodeUri}" rel="stylesheet">
                 <link href="${styleMainUri}" rel="stylesheet">
-                <title>Lucid AI Chat</title>
+                <title>AI Chat</title>
             </head>
             <body>
                 <div class="app-container">
@@ -301,7 +301,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     <div class="chat-area" id="chatArea">
                         <div class="chat-welcome" id="chatWelcome">
                             <img src="${logoUri}" class="welcome-logo-img" alt="Lucid IDE Logo">
-                            <h2>Lucid AI</h2>
+                            <h2>AI Chat</h2>
                             <p>Your local code assistant. All data stays on your machine, powered by open-source models.</p>
                             
                             <div class="setup-notice" id="setupNotice">

@@ -1,6 +1,6 @@
 {
   "name": "lucid-ai",
-  "displayName": "Lucid AI Chat",
+  "displayName": "AI Chat",
   "description": "Integrated local AI model manager and chat assistant for Lucid IDE",
   "version": "1.0.0",
   "publisher": "vscode",
@@ -17,7 +17,7 @@
       "secondarySidebar": [
         {
           "id": "lucid-ai-sidebar",
-          "title": "Lucid AI",
+          "title": "AI Chat",
           "icon": "$(sparkle)"
         }
       ]
@@ -27,7 +27,7 @@
         {
           "type": "webview",
           "id": "lucid.chatView",
-          "name": "Lucid AI Chat",
+          "name": "AI Chat",
           "visibility": "visible"
         }
       ]

@@ -1,27 +1,40 @@
-# Build Script for Lucid IDE Web Installer (C#)
+# Build Script for Lucid IDE Setup Installer
 
 $cscPath = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\Roslyn\csc.exe"
 
 if (-not (Test-Path $cscPath)) {
-    Write-Error "Could not find C# compiler csc.exe at: $cscPath"
+    Write-Error "C# compiler not found at: $cscPath"
     Exit 1
 }
 
-$sourceFile = Join-Path $PSScriptRoot "LucidSetup.cs"
-$outputFile = Join-Path $PSScriptRoot "LucidSetup.exe"
+$src    = Join-Path $PSScriptRoot "LucidSetup.cs"
+$out    = Join-Path $PSScriptRoot "LucidSetup.exe"
+$icon   = Join-Path $PSScriptRoot "lucid.ico"
 
-Write-Host "Compiling LucidSetup.cs using C# compiler..." -ForegroundColor Cyan
+Write-Host "Compiling LucidSetup.exe..." -ForegroundColor Cyan
 
-# Invoke compiler
-# /target:winexe ensures it compiles as a Windows GUI application (no command prompt shown on run)
-# /optimize+ turns on optimization
-# /r:System.IO.Compression.FileSystem.dll adds reference for zip extract
-# /r:System.Net.Http.dll adds reference for http client
-& $cscPath /target:winexe /optimize+ /out:$outputFile /r:System.IO.Compression.FileSystem.dll /r:System.Net.Http.dll $sourceFile
+$args = @(
+    "/target:winexe",
+    "/optimize+",
+    "/out:$out",
+    "/r:System.IO.Compression.FileSystem.dll",
+    "/r:System.IO.Compression.dll",
+    "/r:System.Net.Http.dll",
+    "/r:Microsoft.CSharp.dll"
+)
 
-if ($LASTEXITCODE -eq 0 -and (Test-Path $outputFile)) {
-    Write-Host "Build completed successfully!" -ForegroundColor Green
-    Write-Host "Output: $outputFile" -ForegroundColor Green
+if (Test-Path $icon) {
+    $args += "/win32icon:$icon"
+    Write-Host "  Using icon: $icon" -ForegroundColor Gray
+}
+
+$args += $src
+
+& $cscPath @args
+
+if ($LASTEXITCODE -eq 0 -and (Test-Path $out)) {
+    $kb = [math]::Round((Get-Item $out).Length / 1KB, 0)
+    Write-Host "Build succeeded! Output: $out ($kb KB)" -ForegroundColor Green
 } else {
     Write-Error "Compilation failed."
     Exit 1

@@ -98,6 +98,15 @@
             promptInput.style.height = (promptInput.scrollHeight) + 'px';
         });
 
+        // Intercept external link clicks
+        document.addEventListener('click', (e) => {
+            const target = e.target.closest('a');
+            if (target && target.href && (target.href.startsWith('http://') || target.href.startsWith('https://'))) {
+                e.preventDefault();
+                vscode.postMessage({ command: 'openExternal', url: target.href });
+            }
+        });
+
         // Initialize state
         checkStatus();
         setInterval(checkStatus, 30000); // Check status every 30s

@@ -22,6 +22,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         webviewView.webview.onDidReceiveMessage(async (data) => {
             switch (data.command) {
+                case 'openExternal': {
+                    await vscode.env.openExternal(vscode.Uri.parse(data.url));
+                    break;
+                }
                 case 'checkStatus': {
                     await this.checkOllamaStatus();
                     break;

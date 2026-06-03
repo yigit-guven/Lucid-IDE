@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ChatViewProvider } from './chatProvider';
+import { registerCommitGenerator } from './commitGenerator';
 
 export function activate(context: vscode.ExtensionContext) {
     const provider = new ChatViewProvider(context.extensionUri);
@@ -23,6 +24,8 @@ export function activate(context: vscode.ExtensionContext) {
             provider.focusInput();
         })
     );
+
+    registerCommitGenerator(context);
 }
 
 export function deactivate() {}

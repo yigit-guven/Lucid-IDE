@@ -41,6 +41,11 @@
       {
         "command": "lucid.chat.focus",
         "title": "Focus Chat Input"
+      },
+      {
+        "command": "lucid.scm.generateCommit",
+        "title": "Generate Commit Message (AI)",
+        "icon": "$(sparkle)"
       }
     ],
     "menus": {
@@ -48,6 +53,13 @@
         {
           "command": "lucid.chat.clear",
           "when": "view == lucid.chatView",
+          "group": "navigation"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "lucid.scm.generateCommit",
+          "when": "scmProvider == git",
           "group": "navigation"
         }
       ]

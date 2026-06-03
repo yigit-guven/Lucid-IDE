@@ -46,7 +46,7 @@ setpath "product" "keyboardShortcutsUrlMac" "https://go.microsoft.com/fwlink/?li
 setpath "product" "keyboardShortcutsUrlWin" "https://go.microsoft.com/fwlink/?linkid=832145"
 setpath "product" "licenseUrl" "https://github.com/yigit-guven/Lucid-IDE/blob/main/LICENSE"
 setpath_json "product" "linkProtectionTrustedDomains" '["https://open-vsx.org"]'
-setpath "product" "releaseNotesUrl" "https://go.microsoft.com/fwlink/?LinkID=533483#vscode"
+setpath "product" "releaseNotesUrl" "https://github.com/yigit-guven/Lucid-IDE/releases"
 setpath "product" "reportIssueUrl" "https://github.com/yigit-guven/Lucid-IDE/issues/new"
 setpath "product" "requestFeatureUrl" "https://go.microsoft.com/fwlink/?LinkID=533482"
 setpath "product" "tipsAndTricksUrl" "https://go.microsoft.com/fwlink/?linkid=852118"

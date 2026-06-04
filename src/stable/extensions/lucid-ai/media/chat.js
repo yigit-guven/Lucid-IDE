@@ -1708,7 +1708,7 @@ Explain to the user how they can use these slash commands. When recommending the
                     bodyHtml = `<div class="diff-loading" style="padding: 10px 0; font-size: 11px; opacity: 0.7;">Comparing with disk...</div>`;
                 } else if (change.exists === false) {
                     bodyHtml = `
-                        <div class="new-file-notice" style="padding: 10px 0; font-size: 11px; font-weight: bold; color: #10b981;">🆕 New File (does not exist on disk)</div>
+                        <div class="new-file-notice" style="padding: 10px 0; font-size: 11px; font-weight: bold;">🆕 New File (does not exist on disk)</div>
                         <pre class="tool-code-preview"><code>${escapeHtml(change.content)}</code></pre>
                         <div class="pc-item-actions">
                             <button class="pc-btn pc-btn-success pc-item-accept-btn">Accept</button>

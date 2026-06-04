@@ -45,7 +45,7 @@ Here are some essential keyboard shortcuts to get you started:
 
 Once you're comfortable with the basics, you might want to:
 
-- Explore the [documentation](https://github.com/yigit-guven/Lucid-IDE/blob/master/docs/index.md) for more details
+- Explore the [documentation](https://github.com/yigit-guven/Lucid-IDE/blob/main/docs/index.md) for more details
 - Join the [community](https://github.com/yigit-guven/Lucid-IDE/discussions) to ask questions and share tips
-- Contribute to the [project](https://github.com/yigit-guven/Lucid-IDE/blob/master/CONTRIBUTING.md) if you're interested
+- Contribute to the [project](https://github.com/yigit-guven/Lucid-IDE/blob/main/CONTRIBUTING.md) if you're interested
 

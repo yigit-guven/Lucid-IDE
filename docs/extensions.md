@@ -12,7 +12,7 @@
 - [Proprietary Debugging Tools](#proprietary-debugging-tools)
 - [Proprietary Extensions](#proprietary-extensions)
 - [Using the "VSIX Manager" Extension](#vsix-manager)
-- [Extensions compatibility](https://github.com/yigit-guven/Lucid-IDE/blob/master/docs/extensions-compatibility.md)
+- [Extensions compatibility](https://github.com/yigit-guven/Lucid-IDE/blob/main/docs/extensions-compatibility.md)
 
 ## <a id="marketplace"></a>Marketplace
 
@@ -132,6 +132,6 @@ The **VSIX Manager** extension supports managing extensions from several marketp
 - **Enterprise Flexibility**: Use private or self-hosted marketplaces alongside public ones to meet security and compliance requirements.
 - **Custom Configurations**: Prioritize specific marketplaces for particular needs while keeping access to others.
 
-## [Extensions compatibility](https://github.com/yigit-guven/Lucid-IDE/blob/master/docs/extensions-compatibility.md)
+## [Extensions compatibility](https://github.com/yigit-guven/Lucid-IDE/blob/main/docs/extensions-compatibility.md)
 
 

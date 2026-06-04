@@ -5,7 +5,7 @@
 ## Table of Contents
 
 - [Sign in with GitHub](#signin-github)
-- [Accounts authentication](https://github.com/yigit-guven/Lucid-IDE/blob/master/docs/accounts-authentication.md)
+- [Accounts authentication](https://github.com/yigit-guven/Lucid-IDE/blob/main/docs/accounts-authentication.md)
 - [How do I run Lucid IDE in portable mode?](#portable)
 - [How do I fix the default file manager?](#file-manager)
 - [How do I press and hold a key and have it repeat in Lucid IDE?](#press-and-hold)

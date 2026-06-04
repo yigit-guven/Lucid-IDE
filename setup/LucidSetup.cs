@@ -17,15 +17,15 @@ namespace LucidInstaller
     // ─── Color & Font Palette ────────────────────────────────────────────────
     static class Theme
     {
-        public static readonly Color Bg        = Color.FromArgb(10, 15, 40);
-        public static readonly Color Card      = Color.FromArgb(18, 26, 60);
-        public static readonly Color Border    = Color.FromArgb(30, 60, 100);
-        public static readonly Color Text      = Color.FromArgb(241, 245, 249);
-        public static readonly Color Muted     = Color.FromArgb(120, 150, 190);
-        public static readonly Color Accent    = Color.FromArgb(56, 189, 248);    // sky-400
-        public static readonly Color AccentDim = Color.FromArgb(14, 116, 163);
-        public static readonly Color Success   = Color.FromArgb(52, 211, 153);
-        public static readonly Color Danger    = Color.FromArgb(244, 63, 94);
+        public static readonly Color Bg        = Color.FromArgb(240, 247, 251);    // Lucid Light editor.background (#f0f7fb)
+        public static readonly Color Card      = Color.FromArgb(255, 255, 255);    // White card background contrasts nicely
+        public static readonly Color Border    = Color.FromArgb(185, 203, 217);    // Lucid Light sideBar.border (#b9cbd9)
+        public static readonly Color Text      = Color.FromArgb(30, 41, 59);       // Lucid Light editor.foreground (#1e293b)
+        public static readonly Color Muted     = Color.FromArgb(71, 85, 105);      // Lucid Light sideBar.foreground (#475569)
+        public static readonly Color Accent    = Color.FromArgb(2, 132, 199);       // Lucid Light button.background / focusBorder (#0284c7)
+        public static readonly Color AccentDim = Color.FromArgb(3, 105, 161);      // Lucid Light button.hoverBackground (#0369a1)
+        public static readonly Color Success   = Color.FromArgb(22, 163, 74);       // Green-600
+        public static readonly Color Danger    = Color.FromArgb(220, 38, 38);      // Red-600
 
         public static readonly Font H1    = new Font("Segoe UI", 22, FontStyle.Bold);
         public static readonly Font H2    = new Font("Segoe UI", 14, FontStyle.Bold);
@@ -712,14 +712,14 @@ namespace LucidInstaller
                 Text = text, Font = Theme.Body, Location = loc, Size = size,
                 FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
                 BackColor = primary ? Theme.Accent : Theme.Card,
-                ForeColor = primary ? Theme.Bg      : Theme.Text
+                ForeColor = primary ? Color.White  : Theme.Text
             };
             btn.FlatAppearance.BorderSize  = 0;
             btn.FlatAppearance.BorderColor = primary ? Theme.Accent : Theme.Border;
 
             if (primary)
             {
-                btn.MouseEnter += (s, e) => btn.BackColor = Color.FromArgb(14, 165, 233);
+                btn.MouseEnter += (s, e) => btn.BackColor = Theme.AccentDim;
                 btn.MouseLeave += (s, e) => btn.BackColor = Theme.Accent;
             }
             else

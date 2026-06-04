@@ -96,6 +96,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     terminal.sendText(data.code);
                     break;
                 }
+                case 'generateCommit': {
+                    this.generateCommitMessage();
+                    break;
+                }
             }
         });
 
@@ -244,10 +248,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             return;
         }
 
-        // 1. Check if already installed
+        // 1. Check if already installed (local portable OR system-wide)
+        const systemOllamaExe = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Ollama', 'ollama.exe');
         if (fs.existsSync(ollamaExePath)) {
-            sendProgress(50, 'Ollama is already installed locally. Starting Ollama...');
+            sendProgress(50, 'Ollama found (portable). Starting...');
             await this.startOllamaProcess(ollamaExePath, targetDir, sendProgress, sendError);
+            return;
+        }
+        if (fs.existsSync(systemOllamaExe)) {
+            sendProgress(50, 'Ollama found (system install). Starting...');
+            await this.startOllamaProcess(systemOllamaExe, path.dirname(systemOllamaExe), sendProgress, sendError);
             return;
         }
 
@@ -398,7 +408,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const fs = require('fs');
         const defaultInstallDir = path.join(this._context.extensionUri.fsPath, 'ollama');
         const savedPath = this._context.globalState.get<string>('ollamaInstallPath') || defaultInstallDir;
-        const localInstalled = fs.existsSync(path.join(savedPath, 'ollama.exe'));
+        
+        // Check local portable install AND system-wide install
+        const systemOllamaPath = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Ollama', 'ollama.exe');
+        const localInstalled = fs.existsSync(path.join(savedPath, 'ollama.exe')) || fs.existsSync(systemOllamaPath);
 
         try {
             const response = await fetch('http://127.0.0.1:11434/api/tags');
@@ -521,6 +534,60 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    private async generateCommitMessage() {
+        if (!this._view) return;
+        const webview = this._view.webview;
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            webview.postMessage({ command: 'assistantMessage', content: 'No workspace open — cannot read git diff.' });
+            return;
+        }
+        const cwd = workspaceFolders[0].uri.fsPath;
+        try {
+            const { execSync } = require('child_process');
+            const excludeArgs = `-- ':!*/out/*.js' ':!*/out/*.js.map' ':!*.js.map'`;
+            const status = execSync(`git status --short ${excludeArgs}`, { cwd, encoding: 'utf8', timeout: 3000 }).trim();
+            if (!status) {
+                webview.postMessage({ command: 'assistantMessage', content: '✅ No changes detected — working tree is clean.' });
+                return;
+            }
+            let diff = execSync(`git diff ${excludeArgs}`, { cwd, encoding: 'utf8', timeout: 3000 });
+            if (!diff.trim()) {
+                diff = execSync(`git diff --cached ${excludeArgs}`, { cwd, encoding: 'utf8', timeout: 3000 });
+            }
+
+            // Parse changed files to determine commit type
+            const changedFiles = status.split('\n').map((l: string) => l.trim()).filter(Boolean);
+            const isFixOnly = changedFiles.every((l: string) => /fix|bug|patch|error|crash/i.test(l));
+            const hasSrc = changedFiles.some((l: string) => /\.(ts|js|py|go|rs|java|c|cpp)$/.test(l));
+            const hasDocs = changedFiles.some((l: string) => /\.(md|txt|rst)$/.test(l));
+            const hasStyle = changedFiles.some((l: string) => /\.(css|scss|sass|less)$/.test(l));
+            const hasConfig = changedFiles.some((l: string) => /\.(json|yaml|yml|toml|ini|env)$/.test(l));
+
+            let type = 'chore';
+            if (hasSrc && !isFixOnly) type = 'feat';
+            if (isFixOnly) type = 'fix';
+            if (hasDocs && !hasSrc) type = 'docs';
+            if (hasStyle && !hasSrc) type = 'style';
+            if (hasConfig && !hasSrc) type = 'chore';
+
+            // Build file summary
+            const fileSummary = changedFiles.slice(0, 5).map((l: string) => `  - ${l}`).join('\n');
+            const moreFiles = changedFiles.length > 5 ? `\n  - ...and ${changedFiles.length - 5} more` : '';
+
+            const title = `${type}: update ${workspaceFolders[0].name} source files`;
+            const body = `Changed files:\n${fileSummary}${moreFiles}`;
+            const escapedTitle = title.replace(/"/g, '\\"');
+            const escapedBody = body.replace(/"/g, '\\"');
+
+            const message = `Here is a commit based on your actual changes:\n\n**${title}**\n\n${body}\n\nRun this to commit everything:\n\`\`\`bash\ngit add -A\ngit commit -m "${escapedTitle}" -m "${escapedBody}"\n\`\`\`\n\nOr stage only source files:\n\`\`\`bash\ngit add -- ':!*/out/*.js' ':!*/out/*.js.map'\ngit commit -m "${escapedTitle}" -m "${escapedBody}"\n\`\`\``;
+
+            webview.postMessage({ command: 'assistantMessage', content: message });
+        } catch (e: any) {
+            webview.postMessage({ command: 'assistantMessage', content: `Could not read git diff: ${e.message}` });
+        }
+    }
+
     private async handleChatRequest(model: string, messages: any[]) {
         if (!this._view) return;
         try {
@@ -531,24 +598,34 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 const cwd = workspaceFolders[0].uri.fsPath;
                 workspaceContext += `Active Project/Workspace: ${workspaceFolders[0].name}\nWorkspace Path: ${cwd}\n`;
 
-                // Gather git context
+                // Gather git context — exclude compiled output to keep context human-readable
                 try {
                     const { execSync } = require('child_process');
-                    const status = execSync('git status --short', { cwd, encoding: 'utf8', timeout: 2000 });
+                    // Exclude out/ directory and source maps from both status and diff
+                    const excludeArgs = `-- ':!*/out/*.js' ':!*/out/*.js.map' ':!*.js.map'`;
+                    const status = execSync(`git status --short ${excludeArgs}`, { cwd, encoding: 'utf8', timeout: 2000 });
                     if (status.trim()) {
-                        workspaceContext += `\nGit Status (Modified Files):\n${status}\n`;
-                        let diff = execSync('git diff', { cwd, encoding: 'utf8', timeout: 2000 });
+                        workspaceContext += `\nGit Status (Modified Source Files):\n${status}\n`;
+                        let diff = execSync(`git diff ${excludeArgs}`, { cwd, encoding: 'utf8', timeout: 2000 });
                         if (!diff.trim()) {
-                            diff = execSync('git diff --cached', { cwd, encoding: 'utf8', timeout: 2000 });
+                            diff = execSync(`git diff --cached ${excludeArgs}`, { cwd, encoding: 'utf8', timeout: 2000 });
                         }
                         if (diff.trim()) {
-                            const maxDiffLen = 5000;
-                            const truncatedDiff = diff.length > maxDiffLen ? diff.substring(0, maxDiffLen) + '\n[Diff truncated due to size limit...]' : diff;
-                            workspaceContext += `\nGit Diff:\n\`\`\`diff\n${truncatedDiff}\n\`\`\`\n`;
+                            const maxDiffLen = 8000;
+                            const truncatedDiff = diff.length > maxDiffLen ? diff.substring(0, maxDiffLen) + '\n[Diff truncated — showing first 8000 chars of source changes]' : diff;
+                            workspaceContext += `\nGit Diff (source files only):\n\`\`\`diff\n${truncatedDiff}\n\`\`\`\n`;
                         }
                     } else {
-                        workspaceContext += `\nGit Status: No changes detected.\n`;
+                        workspaceContext += `\nGit Status: Working tree is clean (no uncommitted changes).\n`;
                     }
+
+                    // Unpushed commits (commits not yet on remote)
+                    try {
+                        const unpushed = execSync(`git log --oneline --not --remotes`, { cwd, encoding: 'utf8', timeout: 2000 });
+                        if (unpushed.trim()) {
+                            workspaceContext += `\nUnpushed Commits (not yet on remote):\n${unpushed}\n`;
+                        }
+                    } catch (_) { /* no remote configured */ }
                 } catch (e) {
                     // Not a git repository or git command failed
                 }
@@ -570,14 +647,39 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             }
 
             // Create system prompt
-            const systemPromptContent = `You are the built-in AI assistant for Lucid IDE (a modern developer tool). You are pair programming with the user.
-Here is the context about the user's environment to help you answer:
-${workspaceContext}
-Please utilize this context to help answer user queries about their files, code, and project. Answer in a helpful, concise manner.`;
+            const systemPromptContent = `You are the built-in AI assistant for Lucid IDE. You are pair programming with the user inside their IDE.
 
-            const messagesWithContext = [
+=== YOUR CAPABILITIES ===
+- You have FULL READ access to the user's project state (git status, diffs, unpushed commits, open files) shown in the context below.
+- You CAN execute terminal commands: wrap any shell command in a \`\`\`bash code block and the IDE will show a clickable "Run" button next to it. This is how you commit, push, run builds, etc.
+- NEVER say you cannot access files, git history, or execute commands. You have all of this via the context and the Run button.
+
+=== HOW TO RUN GIT COMMANDS ===
+When the user asks you to commit, push, or run any command, provide the exact command(s) in a bash block like this:
+\`\`\`bash
+git add -A && git commit -m "your message here"
+\`\`\`
+The user will click "Run" and it executes in their terminal. Always do this instead of saying "I can't".
+
+=== COMMIT MESSAGE RULES ===
+When asked for a commit message, base it ONLY on the Git Diff shown in the context below. Do not invent changes. Format: conventional commits (feat/fix/refactor/docs/chore). Include a short title and a bullet-point body explaining what actually changed.
+
+=== LIVE PROJECT CONTEXT ===
+${workspaceContext}
+=== END CONTEXT ===`;
+
+            // Inject context directly into the last user message so small models can't miss it
+            const lastUserIdx = [...messages].map((m, i) => m.role === 'user' ? i : -1).filter(i => i !== -1).at(-1) ?? -1;
+            const finalMessages = messages.map((m, i) => {
+                if (i === lastUserIdx) {
+                    return { ...m, content: `[Context about my project]\n${workspaceContext}\n[End Context]\n\n${m.content}` };
+                }
+                return m;
+            });
+
+            const messagesForApi = [
                 { role: 'system', content: systemPromptContent },
-                ...messages
+                ...finalMessages
             ];
 
             const response = await fetch('http://127.0.0.1:11434/api/chat', {
@@ -585,7 +687,7 @@ Please utilize this context to help answer user queries about their files, code,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: model,
-                    messages: messagesWithContext,
+                    messages: messagesForApi,
                     stream: true
                 })
             });
@@ -738,6 +840,12 @@ Please utilize this context to help answer user queries about their files, code,
 
                     <!-- Input Box -->
                     <div class="input-panel">
+                        <div class="input-toolbar" id="inputToolbar" style="display:none; padding: 4px 10px 0; gap: 6px; display: flex; flex-wrap: wrap;">
+                            <button class="btn btn-sm btn-secondary" id="quickCommitBtn" title="Generate a commit message from your current git diff" style="font-size: 10px; padding: 3px 8px; display:flex; align-items:center; gap:4px;">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="7.05" y2="7.05"/><line x1="16.95" y1="16.95" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+                                Quick Commit
+                            </button>
+                        </div>
                         <div class="input-container">
                             <textarea id="promptInput" placeholder="Ask anything about coding..." rows="1" disabled></textarea>
                             <button id="sendBtn" class="send-btn" disabled>

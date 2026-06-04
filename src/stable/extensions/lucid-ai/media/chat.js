@@ -31,6 +31,8 @@
     const messagesContainer = document.getElementById('messagesContainer');
     const promptInput = document.getElementById('promptInput');
     const sendBtn = document.getElementById('sendBtn');
+    const inputToolbar = document.getElementById('inputToolbar');
+    const quickCommitBtn = document.getElementById('quickCommitBtn');
 
     // State
     let isConnected = false;
@@ -117,6 +119,13 @@
                 }
             }
         });
+
+        // Auto-resize textarea
+        if (quickCommitBtn) {
+            quickCommitBtn.addEventListener('click', () => {
+                vscode.postMessage({ command: 'generateCommit' });
+            });
+        }
 
         // Auto-resize textarea
         promptInput.addEventListener('input', () => {
@@ -211,8 +220,10 @@
             activeCodeBlocks.push(trimmedCode);
             
             const lowerLang = (lang || '').toLowerCase();
-            const isTerminal = ['bash', 'sh', 'powershell', 'cmd', 'shell', 'zsh'].includes(lowerLang) ||
-                               (trimmedCode.trim().match(/^(git|npm|yarn|pnpm|npx|cargo|pip|python|node|docker|kubectl|go|make|g++|gcc|clang)\s/i));
+            const terminalLangs = ['bash', 'sh', 'powershell', 'cmd', 'shell', 'zsh'];
+            const terminalPrefixes = ['git', 'npm', 'yarn', 'pnpm', 'npx', 'cargo', 'pip', 'python', 'node', 'docker', 'kubectl', 'go', 'make', 'g\\+\\+', 'gcc', 'clang'];
+            const isTerminal = terminalLangs.includes(lowerLang) ||
+                               new RegExp('^(' + terminalPrefixes.join('|') + ')\\s', 'i').test(trimmedCode.trim());
             const runButtonHtml = isTerminal ? `<button class="code-action-btn run-btn" data-index="${index}" style="color: var(--brand-primary); font-weight: bold;">Run</button>` : '';
 
             return `
@@ -362,6 +373,12 @@
                 
                 promptInput.disabled = false;
                 sendBtn.disabled = false;
+                break;
+
+            case 'assistantMessage':
+                // Direct message injected as assistant bubble (e.g. Quick Commit)
+                chatWelcome.style.display = 'none';
+                addMessageBubble('assistant', formatMarkdown(message.content));
                 break;
 
             case 'clearChat':
@@ -614,6 +631,7 @@
         } else {
             setupNotice.style.display = 'none';
             quickStartNotice.style.display = 'none';
+            if (inputToolbar) inputToolbar.style.display = 'flex';
             
             if (!isGenerating) {
                 promptInput.disabled = false;

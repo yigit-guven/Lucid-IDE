@@ -70,6 +70,7 @@
         allowWrite: false,
         allowRead: true
     };
+    let pendingChanges = [];
 
     // Slash commands state
     const slashCommands = [
@@ -358,6 +359,91 @@
             }
         });
 
+        // Tab switching and event listeners for review panel
+        const tabs = document.querySelectorAll('.pc-tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                const targetTab = tab.getAttribute('data-tab');
+                const panels = document.querySelectorAll('.pc-panel');
+                panels.forEach(p => {
+                    if (p.id === `pcPanel${targetTab.charAt(0).toUpperCase() + targetTab.slice(1)}`) {
+                        p.style.display = 'block';
+                        p.classList.add('active');
+                    } else {
+                        p.style.display = 'none';
+                        p.classList.remove('active');
+                    }
+                });
+            });
+        });
+
+        const acceptAllBtn = document.getElementById('pcAcceptAllBtn');
+        if (acceptAllBtn) {
+            acceptAllBtn.addEventListener('click', () => {
+                acceptAllChanges();
+            });
+        }
+        const refuseAllBtn = document.getElementById('pcRefuseAllBtn');
+        if (refuseAllBtn) {
+            refuseAllBtn.addEventListener('click', () => {
+                refuseAllChanges();
+            });
+        }
+
+        const pendingChangesPanel = document.getElementById('pendingChangesPanel');
+        if (pendingChangesPanel) {
+            pendingChangesPanel.addEventListener('click', (e) => {
+                const header = e.target.closest('.pc-item-header');
+                if (header) {
+                    const item = header.closest('.pc-item');
+                    const id = item.getAttribute('data-id');
+                    const change = pendingChanges.find(c => c.id === id);
+                    if (change) {
+                        change.expanded = !change.expanded;
+                        updatePendingChangesUI();
+                    }
+                    return;
+                }
+                
+                const acceptBtn = e.target.closest('.pc-item-accept-btn');
+                if (acceptBtn) {
+                    const item = acceptBtn.closest('.pc-item');
+                    const id = item.getAttribute('data-id');
+                    acceptChange(id);
+                    return;
+                }
+                
+                const refuseBtn = e.target.closest('.pc-item-refuse-btn');
+                if (refuseBtn) {
+                    const item = refuseBtn.closest('.pc-item');
+                    const id = item.getAttribute('data-id');
+                    refuseChange(id);
+                    return;
+                }
+            });
+            
+            pendingChangesPanel.addEventListener('change', (e) => {
+                if (e.target.classList.contains('hunk-checkbox')) {
+                    const item = e.target.closest('.pc-item');
+                    if (item) {
+                        const changeId = item.getAttribute('data-id');
+                        const hunkId = e.target.getAttribute('data-hunk-id');
+                        const change = pendingChanges.find(c => c.id === changeId);
+                        if (change && change.blocks) {
+                            const block = change.blocks.find(b => b.id === hunkId);
+                            if (block) {
+                                block.checked = e.target.checked;
+                                updatePendingChangesUI();
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
         // Initialize state
         checkStatus();
         setInterval(checkStatus, 30000); // Check status every 30s
@@ -465,6 +551,8 @@ Explain to the user how they can use these slash commands. When recommending the
         chatHistory = [];
         messagesContainer.innerHTML = '';
         chatWelcome.style.display = 'flex';
+        pendingChanges = [];
+        updatePendingChangesUI();
         updateMainView();
         showToast('🧹 New chat session started');
     }
@@ -570,6 +658,9 @@ Explain to the user how they can use these slash commands. When recommending the
             return;
         }
         if (isGenerating || !selectedModel) return;
+
+        pendingChanges = [];
+        updatePendingChangesUI();
 
         promptInput.value = '';
         promptInput.style.height = 'auto';
@@ -692,7 +783,7 @@ Explain to the user how they can use these slash commands. When recommending the
         });
     }
 
-    function formatMarkdown(text) {
+    function formatMarkdown(text, savePending = false) {
         let writeFileCount = 0;
         // Escape HTML tags to prevent injections, keeping double-escapes safe
         let html = text
@@ -727,123 +818,124 @@ Explain to the user how they can use these slash commands. When recommending the
             `;
         });
 
-        // Parse run_command tag: &lt;run_command&gt;...&lt;/run_command&gt;
-        html = html.replace(/&lt;run_command&gt;([\s\S]*?)&lt;\/run_command&gt;/gi, (match, cmd) => {
-            const trimmedCmd = cmd.trim().replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-            
-            return `
-                <div class="agent-tool-card command-card">
-                    <div class="tool-card-header">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                        <span>Execute Terminal Command</span>
-                    </div>
-                    <pre class="tool-code-preview"><code class="command-code">${escapeHtml(trimmedCmd)}</code></pre>
-                    <div class="tool-card-actions" style="margin-top: 10px; display: flex; gap: 8px;">
-                        <button class="btn btn-sm btn-success accept-tool-btn run-cmd-tool-btn">Accept</button>
-                        <button class="btn btn-sm btn-danger refuse-tool-btn">Refuse</button>
-                    </div>
-                </div>
-            `;
-        });
+        if (savePending) {
+            const newChanges = [];
+            let changeIndex = 0;
+            let m;
 
-        // Parse write_file tag: &lt;write_file path=&quot;...&quot;&gt;...&lt;/write_file&gt;
-        html = html.replace(/&lt;write_file\s+path=(?:&quot;|&#39;|"|')([^"'\n>]+?)(?:&quot;|&#39;|"|')&gt;([\s\S]*?)&lt;\/write_file&gt;/gi, (match, path, content) => {
-            const unescapedContent = content.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-            const trimmedContent = unescapedContent.replace(/^\n+|\n+$/g, '');
-            const cardId = `file_card_${path.replace(/[^a-zA-Z0-9]/g, '_')}_${writeFileCount++}`;
-            
-            return `
-                <div class="agent-tool-card file-card" id="${cardId}" data-path="${escapeHtml(path)}" data-proposed="${escapeHtml(trimmedContent)}">
-                    <div class="tool-card-header">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                        <span>Write File: <strong class="file-path">${escapeHtml(path)}</strong></span>
-                    </div>
-                    <div class="file-diff-container">
-                        <div class="diff-loading" style="padding: 10px; font-size: 11px; opacity: 0.7;">
-                            Comparing with disk...
-                        </div>
-                    </div>
-                    <div class="tool-card-actions" style="display: none; margin-top: 10px; gap: 8px;">
-                        <button class="btn btn-sm btn-success accept-tool-btn write-file-tool-btn">Accept</button>
-                        <button class="btn btn-sm btn-danger refuse-tool-btn">Refuse</button>
-                    </div>
-                </div>
-            `;
-        });
+            // Parse commands
+            const cmdRegex = /&lt;run_command&gt;([\s\S]*?)&lt;\/run_command&gt;/gi;
+            while ((m = cmdRegex.exec(html)) !== null) {
+                const cmdText = m[1].trim().replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                newChanges.push({
+                    id: `cmd_${changeIndex++}`,
+                    type: 'command',
+                    content: cmdText,
+                    status: 'pending',
+                    expanded: false
+                });
+            }
 
-        // Parse patch_file tag: &lt;patch_file path=&quot;...&quot;&gt;...&lt;/patch_file&gt;
-        html = html.replace(/&lt;patch_file\s+path=(?:&quot;|&#39;|"|')([^"'\n>]+?)(?:&quot;|&#39;|"|')&gt;([\s\S]*?)&lt;\/patch_file&gt;/gi, (match, path, diffBody) => {
-            const searchMatch = diffBody.match(/&lt;search&gt;([\s\S]*?)&lt;\/search&gt;/i);
-            const replaceMatch = diffBody.match(/&lt;replace&gt;([\s\S]*?)&lt;\/replace&gt;/i);
-            
-            if (!searchMatch || !replaceMatch) return match;
-            
-            const searchContent = searchMatch[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-            const replaceContent = replaceMatch[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-            
-            // Build visual diff using LCS
-            const searchLines = searchContent.split(/\r?\n/);
-            const replaceLines = replaceContent.split(/\r?\n/);
-            const diff = diffLines(searchLines, replaceLines);
-            const blocks = groupDiff(diff);
-            
-            let diffViewerHtml = '';
-            blocks.forEach(block => {
-                if (block.type === 'unchanged') {
-                    block.lines.forEach(l => {
-                        diffViewerHtml += `<div class="diff-line unchanged">  ${escapeHtml(l.text)}</div>`;
+            // Parse write_file
+            const writeRegex = /&lt;write_file\s+path=(?:&quot;|&#39;|"|')([^"'\n>]+?)(?:&quot;|&#39;|"|')&gt;([\s\S]*?)&lt;\/write_file&gt;/gi;
+            while ((m = writeRegex.exec(html)) !== null) {
+                const filePath = m[1];
+                const contentText = m[2].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                const trimmedContent = contentText.replace(/^\n+|\n+$/g, '');
+                newChanges.push({
+                    id: `write_${changeIndex++}`,
+                    type: 'write',
+                    path: filePath,
+                    content: trimmedContent,
+                    status: 'pending',
+                    expanded: false
+                });
+            }
+
+            // Parse patch_file
+            const patchRegex = /&lt;patch_file\s+path=(?:&quot;|&#39;|"|')([^"'\n>]+?)(?:&quot;|&#39;|"|')&gt;([\s\S]*?)&lt;\/patch_file&gt;/gi;
+            while ((m = patchRegex.exec(html)) !== null) {
+                const filePath = m[1];
+                const diffBody = m[2];
+                const searchMatch = diffBody.match(/&lt;search&gt;([\s\S]*?)&lt;\/search&gt;/i);
+                const replaceMatch = diffBody.match(/&lt;replace&gt;([\s\S]*?)&lt;\/replace&gt;/i);
+                if (searchMatch && replaceMatch) {
+                    const searchContent = searchMatch[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                    const replaceContent = replaceMatch[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                    
+                    const searchLines = searchContent.split(/\r?\n/);
+                    const replaceLines = replaceContent.split(/\r?\n/);
+                    const diff = diffLines(searchLines, replaceLines);
+                    const blocks = groupDiff(diff);
+                    
+                    newChanges.push({
+                        id: `patch_${changeIndex++}`,
+                        type: 'patch',
+                        path: filePath,
+                        search: searchContent,
+                        replace: replaceContent,
+                        blocks: blocks,
+                        status: 'pending',
+                        expanded: false
                     });
-                } else if (block.type === 'edit') {
-                    const hasRemoved = block.lines.some(l => l.type === 'removed');
-                    const hasAdded = block.lines.some(l => l.type === 'added');
+                }
+            }
+
+            // Merge states
+            newChanges.forEach(newC => {
+                const existingC = pendingChanges.find(extC => {
+                    if (extC.type !== newC.type) return false;
+                    if (newC.type === 'command') return extC.content === newC.content;
+                    return extC.path === newC.path;
+                });
+
+                if (existingC) {
+                    newC.id = existingC.id;
+                    newC.expanded = existingC.expanded;
+                    newC.status = existingC.status;
+                    newC.requestedContent = existingC.requestedContent;
+                    newC.diskContent = existingC.diskContent;
+                    newC.exists = existingC.exists;
                     
-                    let hunkHeaderLabel = 'Modify';
-                    if (!hasRemoved && hasAdded) hunkHeaderLabel = 'Insert';
-                    else if (hasRemoved && !hasAdded) hunkHeaderLabel = 'Delete';
-                    
-                    let hunkLinesHtml = '';
-                    block.lines.forEach(l => {
-                        const sign = l.type === 'added' ? '+' : '-';
-                        hunkLinesHtml += `<div class="diff-line ${l.type}">${sign} ${escapeHtml(l.text)}</div>`;
-                    });
-                    
-                    diffViewerHtml += `
-                        <div class="diff-hunk-container" data-hunk-id="${block.id}">
-                            <div class="diff-hunk-header">
-                                <div class="diff-hunk-header-left">
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                                    <span>${hunkHeaderLabel}</span>
-                                </div>
-                                <label class="diff-hunk-checkbox-label">
-                                    <input type="checkbox" class="hunk-checkbox" data-hunk-id="${block.id}" checked>
-                                    <span>Apply hunk</span>
-                                </label>
-                            </div>
-                            <div class="diff-hunk-body">
-                                ${hunkLinesHtml}
-                            </div>
-                        </div>
-                    `;
+                    if (existingC.blocks && newC.blocks) {
+                        newC.blocks.forEach(newB => {
+                            const extB = existingC.blocks.find(b => b.type === newB.type && b.lines.length === newB.lines.length);
+                            if (extB) {
+                                newB.checked = extB.checked;
+                                newB.id = extB.id;
+                            }
+                        });
+                    } else if (existingC.blocks && !newC.blocks) {
+                        newC.blocks = existingC.blocks;
+                    }
                 }
             });
-            
-            const escapedBlocksJson = escapeHtml(JSON.stringify(blocks));
-            
+
+            pendingChanges = newChanges;
+        }
+
+        // Render minimal inline indicators in chat bubble instead of large cards
+        html = html.replace(/&lt;run_command&gt;([\s\S]*?)&lt;\/run_command&gt;/gi, (match, cmd) => {
+            const trimmedCmd = cmd.trim().replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
             return `
-                <div class="agent-tool-card diff-card" data-blocks="${escapedBlocksJson}">
-                    <div class="tool-card-header">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                        <span>Modify File: <strong class="file-path">${escapeHtml(path)}</strong></span>
-                    </div>
-                    <pre class="patch-search" style="display:none;">${escapeHtml(searchContent)}</pre>
-                    <pre class="patch-replace" style="display:none;">${escapeHtml(replaceContent)}</pre>
-                    <div class="diff-viewer">
-                        ${diffViewerHtml}
-                    </div>
-                    <div class="tool-card-actions" style="margin-top: 10px; display: flex; gap: 8px;">
-                        <button class="btn btn-sm btn-success accept-tool-btn patch-file-tool-btn">Accept</button>
-                        <button class="btn btn-sm btn-danger refuse-tool-btn">Refuse</button>
-                    </div>
+                <div class="pc-inline-ref pc-ref-command">
+                    <span class="pc-inline-icon">⚡</span> Proposed Terminal Command: <code>${escapeHtml(trimmedCmd)}</code>
+                </div>
+            `;
+        });
+
+        html = html.replace(/&lt;write_file\s+path=(?:&quot;|&#39;|"|')([^"'\n>]+?)(?:&quot;|&#39;|"|')&gt;([\s\S]*?)&lt;\/write_file&gt;/gi, (match, path) => {
+            return `
+                <div class="pc-inline-ref pc-ref-file">
+                    <span class="pc-inline-icon">📝</span> Proposed File Creation: <code>${escapeHtml(path)}</code>
+                </div>
+            `;
+        });
+
+        html = html.replace(/&lt;patch_file\s+path=(?:&quot;|&#39;|"|')([^"'\n>]+?)(?:&quot;|&#39;|"|')&gt;([\s\S]*?)&lt;\/patch_file&gt;/gi, (match, path) => {
+            return `
+                <div class="pc-inline-ref pc-ref-patch">
+                    <span class="pc-inline-icon">🛠️</span> Proposed File Modification: <code>${escapeHtml(path)}</code>
                 </div>
             `;
         });
@@ -887,7 +979,7 @@ Explain to the user how they can use these slash commands. When recommending the
         // Paragraph formatting (double newlines)
         const paragraphs = html.split('\n\n');
         html = paragraphs.map(p => {
-            if (p.trim().startsWith('<div class="code-block-container">') || p.trim().startsWith('<div class="agent-tool-card') || p.trim().startsWith('<ul>')) {
+            if (p.trim().startsWith('<div class="code-block-container">') || p.trim().startsWith('<div class="agent-tool-card') || p.trim().startsWith('<ul>') || p.trim().startsWith('<div class="pc-inline-ref')) {
                 return p;
             }
             return `<p>${p.trim().replace(/\n/g, '<br>')}</p>`;
@@ -976,7 +1068,8 @@ Explain to the user how they can use these slash commands. When recommending the
                         activeAssistantBubble.innerHTML = '';
                     }
                     activeResponseText += message.text;
-                    activeAssistantBubble.innerHTML = formatMarkdown(activeResponseText);
+                    activeAssistantBubble.innerHTML = formatMarkdown(activeResponseText, true);
+                    updatePendingChangesUI();
                     scrollToBottom();
                 }
                 break;
@@ -985,9 +1078,9 @@ Explain to the user how they can use these slash commands. When recommending the
                 isGenerating = false;
                 chatHistory.push({ role: 'assistant', content: activeResponseText });
                 
-                if (activeAssistantBubble) {
-                    initializeFileCards(activeAssistantBubble);
-                }
+                // Final parse to ensure everything is captured
+                activeAssistantBubble.innerHTML = formatMarkdown(activeResponseText, true);
+                updatePendingChangesUI();
 
                 // Auto-save the chat session
                 vscode.postMessage({
@@ -999,20 +1092,15 @@ Explain to the user how they can use these slash commands. When recommending the
                 });
 
                 // Autopilot execution
-                if (activeAssistantBubble) {
-                    if (appSettings.allowCommands) {
-                        const cmdBtns = activeAssistantBubble.querySelectorAll('.run-cmd-tool-btn');
-                        cmdBtns.forEach(btn => {
-                            btn.click();
-                        });
+                pendingChanges.forEach(change => {
+                    if (change.status === 'pending') {
+                        if (change.type === 'command' && appSettings.allowCommands) {
+                            executeChange(change);
+                        } else if ((change.type === 'write' || change.type === 'patch') && appSettings.allowWrite) {
+                            executeChange(change);
+                        }
                     }
-                    if (appSettings.allowWrite) {
-                        const patchBtns = activeAssistantBubble.querySelectorAll('.patch-file-tool-btn');
-                        patchBtns.forEach(btn => {
-                            btn.click();
-                        });
-                    }
-                }
+                });
                 
                 // Unlock inputs
                 promptInput.disabled = false;
@@ -1039,7 +1127,8 @@ Explain to the user how they can use these slash commands. When recommending the
 
             case 'assistantMessage':
                 chatWelcome.style.display = 'none';
-                addMessageBubble('assistant', formatMarkdown(message.content));
+                addMessageBubble('assistant', formatMarkdown(message.content, true));
+                updatePendingChangesUI();
                 break;
 
             case 'chatList':
@@ -1068,9 +1157,11 @@ Explain to the user how they can use these slash commands. When recommending the
                     selectedModel = loadedChat.model;
                     updateStatusBar();
                 }
+                pendingChanges = [];
+                updatePendingChangesUI();
                 loadedChat.messages.forEach(m => {
                     chatHistory.push(m);
-                    addMessageBubble(m.role, m.role === 'assistant' ? formatMarkdown(m.content) : escapeHtml(m.content));
+                    addMessageBubble(m.role, m.role === 'assistant' ? formatMarkdown(m.content, false) : escapeHtml(m.content));
                 });
                 showToast(`📂 Loaded: "${loadedChat.name.slice(0, 35)}"`);
                 break;
@@ -1081,6 +1172,8 @@ Explain to the user how they can use these slash commands. When recommending the
                 messagesContainer.innerHTML = '';
                 chatWelcome.style.display = 'flex';
                 activeSessionId = null; // Clear session ID
+                pendingChanges = [];
+                updatePendingChangesUI();
                 updateMainView();
                 break;
 
@@ -1103,84 +1196,21 @@ Explain to the user how they can use these slash commands. When recommending the
 
             case 'fileContentResponse': {
                 const { path, content, exists, cardId } = message;
-                const card = document.getElementById(cardId);
-                if (!card) break;
-                
-                const proposedContent = card.getAttribute('data-proposed') || '';
-                const diffContainer = card.querySelector('.file-diff-container');
-                const actions = card.querySelector('.tool-card-actions');
-                
-                if (exists) {
-                    const currentLines = content.split(/\r?\n/);
-                    const proposedLines = proposedContent.split(/\r?\n/);
-                    const diff = diffLines(currentLines, proposedLines);
-                    const blocks = groupDiff(diff);
+                const change = pendingChanges.find(c => c.id === cardId);
+                if (change) {
+                    change.exists = exists;
+                    change.diskContent = content;
                     
-                    let diffViewerHtml = '';
-                    blocks.forEach(block => {
-                        if (block.type === 'unchanged') {
-                            block.lines.forEach(l => {
-                                diffViewerHtml += `<div class="diff-line unchanged">  ${escapeHtml(l.text)}</div>`;
-                            });
-                        } else if (block.type === 'edit') {
-                            const hasRemoved = block.lines.some(l => l.type === 'removed');
-                            const hasAdded = block.lines.some(l => l.type === 'added');
-                            
-                            let hunkHeaderLabel = 'Modify';
-                            if (!hasRemoved && hasAdded) hunkHeaderLabel = 'Insert';
-                            else if (hasRemoved && !hasAdded) hunkHeaderLabel = 'Delete';
-                            
-                            let hunkLinesHtml = '';
-                            block.lines.forEach(l => {
-                                const sign = l.type === 'added' ? '+' : '-';
-                                hunkLinesHtml += `<div class="diff-line ${l.type}">${sign} ${escapeHtml(l.text)}</div>`;
-                            });
-                            
-                            diffViewerHtml += `
-                                <div class="diff-hunk-container" data-hunk-id="${block.id}">
-                                    <div class="diff-hunk-header">
-                                        <div class="diff-hunk-header-left">
-                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                                            <span>${hunkHeaderLabel}</span>
-                                        </div>
-                                        <label class="diff-hunk-checkbox-label">
-                                            <input type="checkbox" class="hunk-checkbox" data-hunk-id="${block.id}" checked>
-                                            <span>Apply hunk</span>
-                                        </label>
-                                    </div>
-                                    <div class="diff-hunk-body">
-                                        ${hunkLinesHtml}
-                                    </div>
-                                </div>
-                            `;
-                        }
-                    });
+                    if (exists) {
+                        const currentLines = content.split(/\r?\n/);
+                        const proposedLines = change.content.split(/\r?\n/);
+                        const diff = diffLines(currentLines, proposedLines);
+                        change.blocks = groupDiff(diff);
+                    }
+                    updatePendingChangesUI();
                     
-                    const escapedBlocksJson = escapeHtml(JSON.stringify(blocks));
-                    card.setAttribute('data-blocks', escapedBlocksJson);
-                    
-                    diffContainer.innerHTML = `
-                        <div class="diff-viewer">
-                            ${diffViewerHtml}
-                        </div>
-                    `;
-                } else {
-                    diffContainer.innerHTML = `
-                        <div class="new-file-notice" style="padding: 10px; font-size: 11px; font-weight: bold; color: #10b981;">🆕 New File (does not exist on disk)</div>
-                        <details class="tool-details" open style="margin: 0 10px 10px 10px;">
-                            <summary>Proposed File Content</summary>
-                            <pre class="tool-code-preview"><code class="file-content">${escapeHtml(proposedContent)}</code></pre>
-                        </details>
-                    `;
-                }
-                
-                if (actions) {
-                    actions.style.display = 'flex';
-                    if (appSettings.allowWrite) {
-                        const acceptBtn = actions.querySelector('.write-file-tool-btn');
-                        if (acceptBtn) {
-                            acceptBtn.click();
-                        }
+                    if (appSettings.allowWrite && change.status === 'pending') {
+                        executeChange(change);
                     }
                 }
                 break;
@@ -1542,6 +1572,313 @@ Explain to the user how they can use these slash commands. When recommending the
             promptInput.style.height = 'auto';
             promptInput.style.height = (promptInput.scrollHeight) + 'px';
         }
+    }
+
+    function updatePendingChangesUI() {
+        const activeChanges = pendingChanges.filter(c => c.status === 'pending');
+        const totalCount = activeChanges.length;
+        
+        const panel = document.getElementById('pendingChangesPanel');
+        if (!panel) return;
+        
+        if (totalCount === 0) {
+            panel.style.display = 'none';
+            return;
+        }
+        
+        panel.style.display = 'block';
+        
+        const totalCountSpan = document.getElementById('pcTotalCount');
+        if (totalCountSpan) totalCountSpan.innerText = totalCount;
+        
+        const terminals = activeChanges.filter(c => c.type === 'command');
+        const files = activeChanges.filter(c => c.type === 'write' || c.type === 'patch');
+        
+        // Update tabs
+        const tabTerminals = document.getElementById('pcTabTerminals');
+        const countTerminals = document.getElementById('pcCountTerminals');
+        if (tabTerminals) {
+            if (terminals.length > 0) {
+                tabTerminals.style.display = 'inline-block';
+                if (countTerminals) countTerminals.innerText = terminals.length;
+            } else {
+                tabTerminals.style.display = 'none';
+            }
+        }
+        
+        const tabFiles = document.getElementById('pcTabFiles');
+        const countFiles = document.getElementById('pcCountFiles');
+        if (tabFiles) {
+            if (files.length > 0) {
+                tabFiles.style.display = 'inline-block';
+                if (countFiles) countFiles.innerText = files.length;
+            } else {
+                tabFiles.style.display = 'none';
+            }
+        }
+
+        const tabBrowser = document.getElementById('pcTabBrowser');
+        if (tabBrowser) tabBrowser.style.display = 'none';
+        
+        // If current active tab is hidden, switch to overview
+        const activeTab = panel.querySelector('.pc-tab.active');
+        if (activeTab) {
+            const currentTabName = activeTab.getAttribute('data-tab');
+            if (currentTabName === 'terminals' && terminals.length === 0) {
+                switchTab('overview');
+            } else if (currentTabName === 'files' && files.length === 0) {
+                switchTab('overview');
+            }
+        }
+        
+        // Render lists
+        renderPendingChangesList('pcOverviewList', activeChanges);
+        renderPendingChangesList('pcTerminalsList', terminals);
+        renderPendingChangesList('pcFilesList', files);
+    }
+
+    function switchTab(tabName) {
+        const panel = document.getElementById('pendingChangesPanel');
+        if (!panel) return;
+        const tabs = panel.querySelectorAll('.pc-tab');
+        tabs.forEach(t => {
+            if (t.getAttribute('data-tab') === tabName) {
+                t.classList.add('active');
+            } else {
+                t.classList.remove('active');
+            }
+        });
+        
+        const panels = panel.querySelectorAll('.pc-panel');
+        panels.forEach(p => {
+            if (p.id === `pcPanel${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`) {
+                p.style.display = 'block';
+                p.classList.add('active');
+            } else {
+                p.style.display = 'none';
+                p.classList.remove('active');
+            }
+        });
+    }
+
+    function renderPendingChangesList(containerId, list) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        
+        if (list.length === 0) {
+            container.innerHTML = '<div style="padding: 15px; text-align: center; opacity: 0.6; font-size: 11px;">No pending items</div>';
+            return;
+        }
+        
+        list.forEach(change => {
+            // Trigger getFileContent if write file and not yet requested
+            if (change.type === 'write' && !change.requestedContent) {
+                change.requestedContent = true;
+                vscode.postMessage({ command: 'getFileContent', path: change.path, cardId: change.id });
+            }
+            
+            const item = document.createElement('div');
+            item.className = `pc-item ${change.expanded ? 'expanded' : ''}`;
+            item.setAttribute('data-id', change.id);
+            
+            let icon = '⚡';
+            let title = '';
+            let bodyHtml = '';
+            
+            if (change.type === 'command') {
+                icon = '⚡';
+                title = `Terminal: <code>${escapeHtml(change.content)}</code>`;
+                bodyHtml = `
+                    <pre class="tool-code-preview"><code>${escapeHtml(change.content)}</code></pre>
+                    <div class="pc-item-actions">
+                        <button class="pc-btn pc-btn-success pc-item-accept-btn">Accept</button>
+                        <button class="pc-btn pc-btn-danger pc-item-refuse-btn">Refuse</button>
+                    </div>
+                `;
+            } else if (change.type === 'write') {
+                icon = '📝';
+                title = `Write File: <strong>${escapeHtml(change.path)}</strong>`;
+                if (change.exists === undefined) {
+                    bodyHtml = `<div class="diff-loading" style="padding: 10px 0; font-size: 11px; opacity: 0.7;">Comparing with disk...</div>`;
+                } else if (change.exists === false) {
+                    bodyHtml = `
+                        <div class="new-file-notice" style="padding: 10px 0; font-size: 11px; font-weight: bold; color: #10b981;">🆕 New File (does not exist on disk)</div>
+                        <pre class="tool-code-preview"><code>${escapeHtml(change.content)}</code></pre>
+                        <div class="pc-item-actions">
+                            <button class="pc-btn pc-btn-success pc-item-accept-btn">Accept</button>
+                            <button class="pc-btn pc-btn-danger pc-item-refuse-btn">Refuse</button>
+                        </div>
+                    `;
+                } else {
+                    bodyHtml = `
+                        ${renderDiffViewer(change)}
+                        <div class="pc-item-actions">
+                            <button class="pc-btn pc-btn-success pc-item-accept-btn">Accept</button>
+                            <button class="pc-btn pc-btn-danger pc-item-refuse-btn">Refuse</button>
+                        </div>
+                    `;
+                }
+            } else if (change.type === 'patch') {
+                icon = '🛠️';
+                title = `Modify File: <strong>${escapeHtml(change.path)}</strong>`;
+                bodyHtml = `
+                    ${renderDiffViewer(change)}
+                    <div class="pc-item-actions">
+                        <button class="pc-btn pc-btn-success pc-item-accept-btn">Accept</button>
+                        <button class="pc-btn pc-btn-danger pc-item-refuse-btn">Refuse</button>
+                    </div>
+                `;
+            }
+            
+            item.innerHTML = `
+                <div class="pc-item-header">
+                    <span class="pc-item-icon">${icon}</span>
+                    <span class="pc-item-title">${title}</span>
+                    <span class="pc-item-expand-arrow">${change.expanded ? '▼' : '▶'}</span>
+                </div>
+                <div class="pc-item-body" style="display: ${change.expanded ? 'block' : 'none'};">
+                    ${bodyHtml}
+                </div>
+            `;
+            
+            container.appendChild(item);
+        });
+    }
+
+    function renderDiffViewer(change) {
+        let diffViewerHtml = '';
+        change.blocks.forEach(block => {
+            if (block.type === 'unchanged') {
+                block.lines.forEach(l => {
+                    diffViewerHtml += `<div class="diff-line unchanged">  ${escapeHtml(l.text)}</div>`;
+                });
+            } else if (block.type === 'edit') {
+                const hasRemoved = block.lines.some(l => l.type === 'removed');
+                const hasAdded = block.lines.some(l => l.type === 'added');
+                
+                let hunkHeaderLabel = 'Modify';
+                if (!hasRemoved && hasAdded) hunkHeaderLabel = 'Insert';
+                else if (hasRemoved && !hasAdded) hunkHeaderLabel = 'Delete';
+                
+                let hunkLinesHtml = '';
+                block.lines.forEach(l => {
+                    const sign = l.type === 'added' ? '+' : '-';
+                    hunkLinesHtml += `<div class="diff-line ${l.type}">${sign} ${escapeHtml(l.text)}</div>`;
+                });
+                
+                if (block.checked === undefined) {
+                    block.checked = true;
+                }
+                
+                diffViewerHtml += `
+                    <div class="diff-hunk-container ${block.checked ? '' : 'excluded'}" data-hunk-id="${block.id}">
+                        <div class="diff-hunk-header">
+                            <div class="diff-hunk-header-left">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                <span>${hunkHeaderLabel}</span>
+                            </div>
+                            <label class="diff-hunk-checkbox-label">
+                                <input type="checkbox" class="hunk-checkbox" data-hunk-id="${block.id}" ${block.checked ? 'checked' : ''}>
+                                <span>Apply hunk</span>
+                            </label>
+                        </div>
+                        <div class="diff-hunk-body">
+                            ${hunkLinesHtml}
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        return `<div class="diff-viewer">${diffViewerHtml}</div>`;
+    }
+
+    function acceptChange(id) {
+        const change = pendingChanges.find(c => c.id === id);
+        if (!change || change.status !== 'pending') return;
+        
+        executeChange(change);
+    }
+
+    function refuseChange(id) {
+        const change = pendingChanges.find(c => c.id === id);
+        if (!change || change.status !== 'pending') return;
+        
+        change.status = 'refused';
+        updatePendingChangesUI();
+    }
+
+    function executeChange(change) {
+        if (change.type === 'command') {
+            vscode.postMessage({ command: 'runInTerminal', code: change.content });
+            change.status = 'accepted';
+        } else if (change.type === 'write') {
+            let content = '';
+            if (change.blocks) {
+                const finalLines = [];
+                change.blocks.forEach(block => {
+                    if (block.type === 'unchanged') {
+                        block.lines.forEach(l => finalLines.push(l.text));
+                    } else if (block.type === 'edit') {
+                        const apply = block.checked !== false;
+                        block.lines.forEach(l => {
+                            if (apply) {
+                                if (l.type === 'added') finalLines.push(l.text);
+                            } else {
+                                if (l.type === 'removed') finalLines.push(l.text);
+                            }
+                        });
+                    }
+                });
+                content = finalLines.join('\n');
+            } else {
+                content = change.content;
+            }
+            vscode.postMessage({ command: 'writeFile', path: change.path, content });
+            change.status = 'accepted';
+        } else if (change.type === 'patch') {
+            let replace = '';
+            if (change.blocks) {
+                const finalReplaceLines = [];
+                change.blocks.forEach(block => {
+                    if (block.type === 'unchanged') {
+                        block.lines.forEach(l => finalReplaceLines.push(l.text));
+                    } else if (block.type === 'edit') {
+                        const apply = block.checked !== false;
+                        block.lines.forEach(l => {
+                            if (apply) {
+                                if (l.type === 'added') finalReplaceLines.push(l.text);
+                            } else {
+                                if (l.type === 'removed') finalReplaceLines.push(l.text);
+                            }
+                        });
+                    }
+                });
+                replace = finalReplaceLines.join('\n');
+            } else {
+                replace = change.replace;
+            }
+            vscode.postMessage({ command: 'patchFile', path: change.path, search: change.search, replace });
+            change.status = 'accepted';
+        }
+        updatePendingChangesUI();
+    }
+
+    function acceptAllChanges() {
+        pendingChanges.forEach(change => {
+            if (change.status === 'pending') {
+                executeChange(change);
+            }
+        });
+    }
+
+    function refuseAllChanges() {
+        pendingChanges.forEach(change => {
+            if (change.status === 'pending') {
+                change.status = 'refused';
+            }
+        });
+        updatePendingChangesUI();
     }
 
     // Run

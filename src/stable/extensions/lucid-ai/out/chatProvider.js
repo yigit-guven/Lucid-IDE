@@ -1196,6 +1196,37 @@ class ChatViewProvider {
                     <!-- Input Box -->
                     <div class="input-panel" style="position: relative;">
                         <div id="slashMenu" class="slash-menu" style="display:none;"></div>
+                        <div id="pendingChangesPanel" class="pending-changes-panel" style="display:none;">
+                            <div class="pc-header">
+                                <span class="pc-title">⚡ Pending Actions (<span id="pcTotalCount">0</span>)</span>
+                                <div class="pc-global-actions">
+                                    <button class="pc-btn pc-btn-success" id="pcAcceptAllBtn">Accept All</button>
+                                    <button class="pc-btn pc-btn-danger" id="pcRefuseAllBtn">Refuse All</button>
+                                </div>
+                            </div>
+                            <div class="pc-tabs">
+                                <button class="pc-tab active" data-tab="overview">Overview</button>
+                                <button class="pc-tab" data-tab="terminals" id="pcTabTerminals" style="display:none;">Terminals (<span id="pcCountTerminals">0</span>)</button>
+                                <button class="pc-tab" data-tab="files" id="pcTabFiles" style="display:none;">Files (<span id="pcCountFiles">0</span>)</button>
+                                <button class="pc-tab" data-tab="browser" id="pcTabBrowser" style="display:none;">Browser</button>
+                            </div>
+                            <div class="pc-content">
+                                <div class="pc-panel active" id="pcPanelOverview">
+                                    <div class="pc-list" id="pcOverviewList"></div>
+                                </div>
+                                <div class="pc-panel" id="pcPanelTerminals" style="display:none;">
+                                    <div class="pc-list" id="pcTerminalsList"></div>
+                                </div>
+                                <div class="pc-panel" id="pcPanelFiles" style="display:none;">
+                                    <div class="pc-list" id="pcFilesList"></div>
+                                </div>
+                                <div class="pc-panel" id="pcPanelBrowser" style="display:none;">
+                                    <div class="pc-list" id="pcBrowserList">
+                                        <div style="padding: 10px; font-size: 11px; opacity: 0.6; text-align: center;">No active web preview</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="input-toolbar" id="inputToolbar" style="display:none; padding: 4px 10px 0; gap: 6px; display: flex; flex-wrap: wrap;">
                         </div>
                         <div class="input-container">

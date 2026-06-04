@@ -1218,3 +1218,207 @@ html, body {
     opacity: 0.9;
 }
 
+/* Pending Changes Panel */
+.pending-changes-panel {
+    background: var(--vscode-editor-background, #1e1e1e);
+    border: 1px solid var(--vscode-widget-border, var(--glass-border));
+    border-radius: 8px;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.pc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.15);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.pc-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--brand-primary);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pc-global-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.pc-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--glass-border);
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.pc-tab {
+    background: transparent;
+    border: none;
+    color: var(--vscode-foreground);
+    padding: 6px 12px;
+    font-size: 10px;
+    font-weight: 500;
+    cursor: pointer;
+    opacity: 0.65;
+    transition: opacity 0.15s, background-color 0.15s, border-bottom-color 0.15s;
+    border-bottom: 2px solid transparent;
+}
+
+.pc-tab:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.pc-tab.active {
+    opacity: 1;
+    border-bottom-color: var(--brand-primary);
+    background: rgba(255, 255, 255, 0.05);
+    font-weight: 600;
+}
+
+.pc-content {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.pc-panel {
+    display: none;
+}
+
+.pc-panel.active {
+    display: block;
+}
+
+.pc-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.pc-item {
+    border-bottom: 1px solid var(--glass-border);
+    transition: background-color 0.15s;
+}
+
+.pc-item:last-child {
+    border-bottom: none;
+}
+
+.pc-item:hover {
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.pc-item-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 11px;
+    gap: 8px;
+    user-select: none;
+}
+
+.pc-item-icon {
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.pc-item-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pc-item-title code, .pc-item-title strong {
+    font-family: monospace;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+.pc-item-expand-arrow {
+    font-size: 8px;
+    opacity: 0.5;
+    transition: transform 0.15s;
+}
+
+.pc-item-body {
+    padding: 0 12px 10px 12px;
+}
+
+.pc-item-body .tool-code-preview {
+    margin-bottom: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    padding: 6px;
+    max-height: 120px;
+}
+
+.pc-item-body .diff-viewer {
+    margin-bottom: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    max-height: 200px;
+}
+
+.pc-item-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.pc-btn {
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: none;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s, opacity 0.15s;
+}
+
+.pc-btn-success {
+    background: var(--vscode-button-background, #10b981);
+    color: var(--vscode-button-foreground, #ffffff);
+}
+
+.pc-btn-success:hover {
+    background: var(--vscode-button-hoverBackground, #059669);
+}
+
+.pc-btn-danger {
+    background: var(--vscode-button-secondaryBackground, #ef4444);
+    color: var(--vscode-button-secondaryForeground, #ffffff);
+}
+
+.pc-btn-danger:hover {
+    background: var(--vscode-button-secondaryHoverBackground, #dc2626);
+}
+
+/* Inline reference in chat message */
+.pc-inline-ref {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed var(--glass-border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin: 6px 0;
+    font-size: 11px;
+    font-family: inherit;
+}
+
+.pc-inline-icon {
+    font-size: 12px;
+    opacity: 0.9;
+}
+

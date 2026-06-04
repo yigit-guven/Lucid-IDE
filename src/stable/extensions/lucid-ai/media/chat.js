@@ -37,6 +37,7 @@
     const closeChatsDrawerBtn = document.getElementById('closeChatsDrawerBtn');
     const saveCurrentChatBtn = document.getElementById('saveCurrentChatBtn');
     const chatsList = document.getElementById('chatsList');
+    const slashMenu = document.getElementById('slashMenu');
 
     const newChatBtn = document.getElementById('newChatBtn');
     const settingsBtn = document.getElementById('settingsBtn');
@@ -69,6 +70,16 @@
         allowWrite: false,
         allowRead: true
     };
+
+    // Slash commands state
+    const slashCommands = [
+        { cmd: '/goal', desc: 'Run a long-running, thorough task' },
+        { cmd: '/schedule', desc: 'Schedule a timer or recurring cron' },
+        { cmd: '/grill-me', desc: 'Interactive interview for plan alignment' },
+        { cmd: '/clear', desc: 'Clear the chat history' }
+    ];
+    let activeSlashIndex = 0;
+    let filteredCommands = [];
 
 
     // Recommended models list
@@ -156,9 +167,54 @@
         
         sendBtn.addEventListener('click', submitPrompt);
         promptInput.addEventListener('keydown', (e) => {
+            if (slashMenu && slashMenu.style.display !== 'none') {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    activeSlashIndex = (activeSlashIndex + 1) % filteredCommands.length;
+                    renderSlashMenu();
+                    return;
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    activeSlashIndex = (activeSlashIndex - 1 + filteredCommands.length) % filteredCommands.length;
+                    renderSlashMenu();
+                    return;
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (filteredCommands[activeSlashIndex]) {
+                        selectSlashCommand(filteredCommands[activeSlashIndex]);
+                    }
+                    return;
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    showSlashMenu(false);
+                    return;
+                }
+            }
+
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 submitPrompt();
+            }
+        });
+
+        // Slash menu trigger & filter
+        promptInput.addEventListener('input', () => {
+            const val = promptInput.value;
+            if (val.startsWith('/') && !val.includes(' ')) {
+                const query = val.toLowerCase();
+                filteredCommands = slashCommands.filter(c => c.cmd.toLowerCase().startsWith(query));
+                activeSlashIndex = 0;
+                showSlashMenu(true);
+                renderSlashMenu();
+            } else {
+                showSlashMenu(false);
+            }
+        });
+
+        // Click outside to close slash menu
+        document.addEventListener('click', (e) => {
+            if (slashMenu && !slashMenu.contains(e.target) && e.target !== promptInput) {
+                showSlashMenu(false);
             }
         });
 
@@ -378,6 +434,15 @@
        <option>PostgreSQL</option>
      </ask_question>
 
+=== SLASH COMMANDS & RECOMMENDATIONS ===
+You support and should recommend slash commands to the user when appropriate:
+- \`/goal\`: Recommend this when the user wants to run a long-running task (e.g., overnight) and wants the agent to be extra thorough and not stop until the goal is fully achieved.
+- \`/schedule\`: Recommend this when the user wants to run an instruction on a recurring schedule or set a one-time timer.
+- \`/grill-me\`: Recommend this when the user wants to align on a plan through an interactive interview to resolve design decisions.
+- \`/clear\`: Can be used to clear the chat history.
+
+Explain to the user how they can use these slash commands. When recommending them, suggest them clearly in your response (e.g. "You can use the \`/goal\` command to...").
+
 === RULES & GUIDELINES ===
 - Act as a highly capable, autonomous developer agent. Proactively suggest file modifications, commands, and questions using these structured XML tags.
 - Always use the precise XML tag syntax shown above.
@@ -497,7 +562,14 @@
 
     function submitPrompt() {
         const text = promptInput.value.trim();
-        if (!text || isGenerating || !selectedModel) return;
+        if (!text) return;
+        if (text.startsWith('/clear')) {
+            promptInput.value = '';
+            promptInput.style.height = 'auto';
+            startNewChat();
+            return;
+        }
+        if (isGenerating || !selectedModel) return;
 
         promptInput.value = '';
         promptInput.style.height = 'auto';
@@ -1422,6 +1494,54 @@
         installBtn.disabled = false;
         if (ollamaVersionSelect) ollamaVersionSelect.disabled = false;
         if (browseDirBtn) browseDirBtn.disabled = false;
+    }
+
+    function showSlashMenu(show) {
+        if (slashMenu) {
+            slashMenu.style.display = show ? 'block' : 'none';
+            if (!show) {
+                filteredCommands = [];
+                activeSlashIndex = 0;
+            }
+        }
+    }
+
+    function renderSlashMenu() {
+        if (!slashMenu) return;
+        if (filteredCommands.length === 0) {
+            showSlashMenu(false);
+            return;
+        }
+        slashMenu.innerHTML = filteredCommands.map((cmd, index) => `
+            <div class="slash-item ${index === activeSlashIndex ? 'active' : ''}" data-index="${index}">
+                <span class="slash-cmd">${cmd.cmd}</span>
+                <span class="slash-desc">${cmd.desc}</span>
+            </div>
+        `).join('');
+
+        // Add click event listeners to slash items
+        const items = slashMenu.querySelectorAll('.slash-item');
+        items.forEach(item => {
+            item.addEventListener('click', () => {
+                const idx = parseInt(item.getAttribute('data-index'), 10);
+                selectSlashCommand(filteredCommands[idx]);
+            });
+        });
+    }
+
+    function selectSlashCommand(cmdObj) {
+        if (cmdObj.cmd === '/clear') {
+            promptInput.value = '';
+            showSlashMenu(false);
+            startNewChat();
+        } else {
+            promptInput.value = cmdObj.cmd + ' ';
+            showSlashMenu(false);
+            promptInput.focus();
+            // Adjust textarea height
+            promptInput.style.height = 'auto';
+            promptInput.style.height = (promptInput.scrollHeight) + 'px';
+        }
     }
 
     // Run

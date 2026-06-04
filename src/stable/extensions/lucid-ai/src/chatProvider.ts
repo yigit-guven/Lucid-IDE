@@ -35,6 +35,15 @@ const DEFAULT_SYSTEM_PROMPT = `You are the built-in AI assistant for Lucid IDE, 
        <option>PostgreSQL</option>
      </ask_question>
 
+=== SLASH COMMANDS & RECOMMENDATIONS ===
+You support and should recommend slash commands to the user when appropriate:
+- \`/goal\`: Recommend this when the user wants to run a long-running task (e.g., overnight) and wants the agent to be extra thorough and not stop until the goal is fully achieved.
+- \`/schedule\`: Recommend this when the user wants to run an instruction on a recurring schedule or set a one-time timer.
+- \`/grill-me\`: Recommend this when the user wants to align on a plan through an interactive interview to resolve design decisions.
+- \`/clear\`: Can be used to clear the chat history.
+
+Explain to the user how they can use these slash commands. When recommending them, suggest them clearly in your response (e.g. "You can use the \`/goal\` command to...").
+
 === RULES & GUIDELINES ===
 - Act as a highly capable, autonomous developer agent. Proactively suggest file modifications, commands, and questions using these structured XML tags.
 - Always use the precise XML tag syntax shown above.
@@ -1230,7 +1239,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     </div>
 
                     <!-- Input Box -->
-                    <div class="input-panel">
+                    <div class="input-panel" style="position: relative;">
+                        <div id="slashMenu" class="slash-menu" style="display:none;"></div>
                         <div class="input-toolbar" id="inputToolbar" style="display:none; padding: 4px 10px 0; gap: 6px; display: flex; flex-wrap: wrap;">
                         </div>
                         <div class="input-container">

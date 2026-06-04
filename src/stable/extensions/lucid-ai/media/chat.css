@@ -1164,3 +1164,57 @@ html, body {
     opacity: 0;
 }
 
+/* Autocomplete Slash Menu Styles */
+.slash-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 10px;
+    right: 10px;
+    background-color: var(--vscode-dropdown-background, var(--vscode-editor-background, #1e1e1e));
+    border: 1px solid var(--vscode-dropdown-border, var(--glass-border, rgba(255, 255, 255, 0.1)));
+    border-radius: 6px;
+    box-shadow: var(--shadow-glow, 0 4px 12px rgba(0,0,0,0.5));
+    max-height: 180px;
+    overflow-y: auto;
+    z-index: 1000;
+    margin-bottom: 6px;
+    padding: 4px 0;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.slash-item {
+    padding: 6px 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.slash-item:hover, .slash-item.active {
+    background-color: var(--vscode-list-activeSelectionBackground, var(--brand-primary, #8a2be2));
+    color: var(--vscode-list-activeSelectionForeground, #ffffff) !important;
+}
+
+.slash-cmd {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--vscode-foreground, #cccccc);
+}
+
+.slash-item:hover .slash-cmd, .slash-item.active .slash-cmd {
+    color: inherit;
+}
+
+.slash-desc {
+    font-size: 10px;
+    opacity: 0.7;
+    color: var(--vscode-foreground, #cccccc);
+}
+
+.slash-item:hover .slash-desc, .slash-item.active .slash-desc {
+    color: inherit;
+    opacity: 0.9;
+}
+

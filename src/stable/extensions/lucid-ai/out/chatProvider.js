@@ -307,6 +307,15 @@ class ChatViewProvider {
                     }
                     break;
                 }
+                case 'stopOllama': {
+                    await this.stopOllama();
+                    await this.checkOllamaStatus();
+                    break;
+                }
+                case 'startOllama': {
+                    this.installAndStartOllama();
+                    break;
+                }
             }
         });
         // Check status on load
@@ -627,6 +636,14 @@ class ChatViewProvider {
                 defaultPath: savedPath
             });
         }
+    }
+    async stopOllama() {
+        const { exec } = require('child_process');
+        return new Promise((resolve) => {
+            exec('taskkill /IM ollama.exe /F', (err, stdout, stderr) => {
+                resolve();
+            });
+        });
     }
     async pullModel(modelName) {
         if (!this._view)
@@ -1063,6 +1080,17 @@ class ChatViewProvider {
                                     <label class="form-label">Ollama Host URL</label>
                                     <input type="text" id="settingsHostUrl" class="form-input">
                                 </div>
+                            </div>
+                            
+                            <hr class="form-divider">
+                            
+                            <label class="form-section-header">Ollama Service Control</label>
+                            <div class="permission-item">
+                                <div class="permission-info">
+                                    <div class="permission-title">Service Process</div>
+                                    <div class="permission-desc" id="ollamaServiceDesc">Start or stop the background Ollama service.</div>
+                                </div>
+                                <button class="btn btn-sm" id="toggleOllamaServiceBtn" style="padding: 4px 8px; font-size: 10px; font-weight: 600; min-width: 100px;"></button>
                             </div>
 
                             <hr class="form-divider">

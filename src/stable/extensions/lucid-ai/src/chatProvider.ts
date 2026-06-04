@@ -311,6 +311,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     }
                     break;
                 }
+                case 'stopOllama': {
+                    await this.stopOllama();
+                    await this.checkOllamaStatus();
+                    break;
+                }
+                case 'startOllama': {
+                    this.installAndStartOllama();
+                    break;
+                }
             }
         });
 
@@ -658,6 +667,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 defaultPath: savedPath
             });
         }
+    }
+
+    private async stopOllama() {
+        const { exec } = require('child_process');
+        return new Promise<void>((resolve) => {
+            exec('taskkill /IM ollama.exe /F', (err: any, stdout: any, stderr: any) => {
+                resolve();
+            });
+        });
     }
 
     private async pullModel(modelName: string) {
@@ -1107,6 +1125,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                                     <label class="form-label">Ollama Host URL</label>
                                     <input type="text" id="settingsHostUrl" class="form-input">
                                 </div>
+                            </div>
+                            
+                            <hr class="form-divider">
+                            
+                            <label class="form-section-header">Ollama Service Control</label>
+                            <div class="permission-item">
+                                <div class="permission-info">
+                                    <div class="permission-title">Service Process</div>
+                                    <div class="permission-desc" id="ollamaServiceDesc">Start or stop the background Ollama service.</div>
+                                </div>
+                                <button class="btn btn-sm" id="toggleOllamaServiceBtn" style="padding: 4px 8px; font-size: 10px; font-weight: 600; min-width: 100px;"></button>
                             </div>
 
                             <hr class="form-divider">

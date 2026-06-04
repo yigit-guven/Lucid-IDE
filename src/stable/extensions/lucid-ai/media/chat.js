@@ -50,6 +50,7 @@
     const settingsAllowRead = document.getElementById('settingsAllowRead');
     const saveSettingsBtn = document.getElementById('saveSettingsBtn');
     const resetSettingsBtn = document.getElementById('resetSettingsBtn');
+    const toggleOllamaServiceBtn = document.getElementById('toggleOllamaServiceBtn');
 
     // State
     let isConnected = false;
@@ -121,6 +122,19 @@
         if (closeSettingsDrawerBtn) closeSettingsDrawerBtn.addEventListener('click', closeSettingsDrawer);
         if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', saveSettings);
         if (resetSettingsBtn) resetSettingsBtn.addEventListener('click', resetSettings);
+        if (toggleOllamaServiceBtn) {
+            toggleOllamaServiceBtn.addEventListener('click', () => {
+                if (isConnected) {
+                    toggleOllamaServiceBtn.disabled = true;
+                    toggleOllamaServiceBtn.innerText = 'Stopping...';
+                    vscode.postMessage({ command: 'stopOllama' });
+                } else {
+                    toggleOllamaServiceBtn.disabled = true;
+                    toggleOllamaServiceBtn.innerText = 'Starting...';
+                    vscode.postMessage({ command: 'startOllama' });
+                }
+            });
+        }
 
         // New Chat
         if (newChatBtn) newChatBtn.addEventListener('click', startNewChat);
@@ -1107,6 +1121,17 @@
     });
 
     function updateStatusBar() {
+        if (toggleOllamaServiceBtn) {
+            toggleOllamaServiceBtn.disabled = false;
+            if (isConnected) {
+                toggleOllamaServiceBtn.innerText = 'Stop Service';
+                toggleOllamaServiceBtn.className = 'btn btn-sm btn-danger';
+            } else {
+                toggleOllamaServiceBtn.innerText = 'Start Service';
+                toggleOllamaServiceBtn.className = 'btn btn-sm btn-success';
+            }
+        }
+
         if (isConnected) {
             statusIndicator.className = 'status-indicator connected';
             statusDot.style.backgroundColor = '#10b981';

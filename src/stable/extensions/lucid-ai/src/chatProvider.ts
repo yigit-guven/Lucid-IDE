@@ -205,9 +205,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     const allowCommands = this._context.globalState.get<boolean>('ai.settings.allowCommands', false);
                     const allowWrite = this._context.globalState.get<boolean>('ai.settings.allowWrite', false);
                     const allowRead = this._context.globalState.get<boolean>('ai.settings.allowRead', true);
+                    const closeOllamaOnClose = this._context.globalState.get<boolean>('ai.settings.closeOllamaOnClose', true);
                     webviewView.webview.postMessage({
                         command: 'settingsUpdate',
-                        settings: { systemPrompt, temperature, hostUrl, allowCommands, allowWrite, allowRead }
+                        settings: { systemPrompt, temperature, hostUrl, allowCommands, allowWrite, allowRead, closeOllamaOnClose }
                     });
                     break;
                 }
@@ -219,6 +220,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     await this._context.globalState.update('ai.settings.allowCommands', s.allowCommands);
                     await this._context.globalState.update('ai.settings.allowWrite', s.allowWrite);
                     await this._context.globalState.update('ai.settings.allowRead', s.allowRead);
+                    await this._context.globalState.update('ai.settings.closeOllamaOnClose', s.closeOllamaOnClose);
                     vscode.window.showInformationMessage('Lucid AI settings updated.');
                     break;
                 }
@@ -345,6 +347,57 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     public focusInput() {
         if (this._view) {
             this._view.webview.postMessage({ command: 'focusInput' });
+        }
+    }
+
+    public async startOllamaSilently() {
+        const path = require('path');
+        const fs = require('fs');
+        const defaultInstallDir = path.join(this._context.extensionUri.fsPath, 'ollama');
+        const targetDir = this._context.globalState.get<string>('ollamaInstallPath') || defaultInstallDir;
+        const ollamaExePath = path.join(targetDir, 'ollama.exe');
+        const systemOllamaExe = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Ollama', 'ollama.exe');
+        
+        let exeToStart = '';
+        let runDir = '';
+        
+        if (fs.existsSync(ollamaExePath)) {
+            exeToStart = ollamaExePath;
+            runDir = targetDir;
+        } else if (fs.existsSync(systemOllamaExe)) {
+            exeToStart = systemOllamaExe;
+            runDir = path.dirname(systemOllamaExe);
+        }
+        
+        if (exeToStart) {
+            try {
+                const response = await fetch('http://127.0.0.1:11434/api/tags');
+                if (response.ok) {
+                    return; // Already running
+                }
+            } catch (e) {
+                // Not running
+            }
+            
+            const { spawn } = require('child_process');
+            const modelsDir = path.join(runDir, 'models');
+            try {
+                if (!fs.existsSync(modelsDir)) {
+                    fs.mkdirSync(modelsDir, { recursive: true });
+                }
+            } catch (e) {}
+            
+            try {
+                const child = spawn(exeToStart, ['serve'], {
+                    detached: true,
+                    stdio: 'ignore',
+                    env: {
+                        ...process.env,
+                        OLLAMA_MODELS: modelsDir
+                    }
+                });
+                child.unref();
+            } catch (e) {}
         }
     }
 
@@ -1145,6 +1198,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                                     <div class="permission-desc" id="ollamaServiceDesc">Start or stop the background Ollama service.</div>
                                 </div>
                                 <button class="btn btn-sm" id="toggleOllamaServiceBtn" style="padding: 4px 8px; font-size: 10px; font-weight: 600; min-width: 100px;"></button>
+                            </div>
+                            <div class="permission-item">
+                                <div class="permission-info">
+                                    <div class="permission-title">Manage Service Lifetime</div>
+                                    <div class="permission-desc">Start Ollama on launch and close it on exit.</div>
+                                </div>
+                                <input type="checkbox" id="settingsCloseOllamaOnClose">
                             </div>
 
                             <hr class="form-divider">

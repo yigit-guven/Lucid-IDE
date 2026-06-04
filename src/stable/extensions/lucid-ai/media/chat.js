@@ -49,6 +49,7 @@
     const settingsAllowCommands = document.getElementById('settingsAllowCommands');
     const settingsAllowWrite = document.getElementById('settingsAllowWrite');
     const settingsAllowRead = document.getElementById('settingsAllowRead');
+    const settingsCloseOllamaOnClose = document.getElementById('settingsCloseOllamaOnClose');
     const saveSettingsBtn = document.getElementById('saveSettingsBtn');
     const resetSettingsBtn = document.getElementById('resetSettingsBtn');
     const toggleOllamaServiceBtn = document.getElementById('toggleOllamaServiceBtn');
@@ -68,7 +69,8 @@
         hostUrl: 'http://127.0.0.1:11434',
         allowCommands: false,
         allowWrite: false,
-        allowRead: true
+        allowRead: true,
+        closeOllamaOnClose: true
     };
     let pendingChanges = [];
 
@@ -474,8 +476,9 @@
         const allowCommands = settingsAllowCommands.checked;
         const allowWrite = settingsAllowWrite.checked;
         const allowRead = settingsAllowRead.checked;
+        const closeOllamaOnClose = settingsCloseOllamaOnClose.checked;
         
-        appSettings = { systemPrompt, temperature, hostUrl, allowCommands, allowWrite, allowRead };
+        appSettings = { systemPrompt, temperature, hostUrl, allowCommands, allowWrite, allowRead, closeOllamaOnClose };
         
         vscode.postMessage({
             command: 'updateSettings',
@@ -544,6 +547,7 @@ Explain to the user how they can use these slash commands. When recommending the
         if (settingsAllowCommands) settingsAllowCommands.checked = false;
         if (settingsAllowWrite) settingsAllowWrite.checked = false;
         if (settingsAllowRead) settingsAllowRead.checked = true;
+        if (settingsCloseOllamaOnClose) settingsCloseOllamaOnClose.checked = true;
     }
 
     function startNewChat() {
@@ -1186,6 +1190,7 @@ Explain to the user how they can use these slash commands. When recommending the
                 if (settingsAllowCommands) settingsAllowCommands.checked = !!s.allowCommands;
                 if (settingsAllowWrite) settingsAllowWrite.checked = !!s.allowWrite;
                 if (settingsAllowRead) settingsAllowRead.checked = !!s.allowRead;
+                if (settingsCloseOllamaOnClose) settingsCloseOllamaOnClose.checked = s.closeOllamaOnClose !== undefined ? !!s.closeOllamaOnClose : true;
                 break;
             }
 

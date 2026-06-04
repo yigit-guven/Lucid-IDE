@@ -295,10 +295,14 @@
 
     function openSettingsDrawer() {
         if (settingsDrawer) {
-            settingsDrawer.style.display = 'flex';
-            modelDrawer.style.display = 'none';
-            if (chatsDrawer) chatsDrawer.style.display = 'none';
-            vscode.postMessage({ command: 'getSettings' });
+            if (settingsDrawer.style.display === 'flex') {
+                closeSettingsDrawer();
+            } else {
+                settingsDrawer.style.display = 'flex';
+                modelDrawer.style.display = 'none';
+                if (chatsDrawer) chatsDrawer.style.display = 'none';
+                vscode.postMessage({ command: 'getSettings' });
+            }
         }
     }
 
@@ -391,8 +395,13 @@
     }
 
     function openDrawer() {
-        modelDrawer.style.display = 'flex';
-        if (chatsDrawer) chatsDrawer.style.display = 'none';
+        if (modelDrawer.style.display === 'flex') {
+            closeDrawer();
+        } else {
+            modelDrawer.style.display = 'flex';
+            if (chatsDrawer) chatsDrawer.style.display = 'none';
+            if (settingsDrawer) settingsDrawer.style.display = 'none';
+        }
     }
 
     function closeDrawer() {
@@ -401,9 +410,14 @@
 
     function openChatsDrawer() {
         if (chatsDrawer) {
-            chatsDrawer.style.display = 'flex';
-            modelDrawer.style.display = 'none';
-            vscode.postMessage({ command: 'listChats' });
+            if (chatsDrawer.style.display === 'flex') {
+                closeChatsDrawer();
+            } else {
+                chatsDrawer.style.display = 'flex';
+                modelDrawer.style.display = 'none';
+                if (settingsDrawer) settingsDrawer.style.display = 'none';
+                vscode.postMessage({ command: 'listChats' });
+            }
         }
     }
 

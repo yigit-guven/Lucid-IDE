@@ -3,7 +3,7 @@
   "displayName": "AI Chat",
   "description": "Integrated local AI model manager and chat assistant for Lucid IDE",
   "version": "1.0.0",
-  "publisher": "vscode",
+  "publisher": "yigit-guven",
   "license": "MIT",
   "engines": {
     "vscode": "^1.80.0"
@@ -69,5 +69,6 @@
     "@types/node": "^25.9.1",
     "@types/vscode": "^1.80.0",
     "typescript": "^5.1.3"
-  }
+  },
+  "author": "Yiğit Güven"
 }

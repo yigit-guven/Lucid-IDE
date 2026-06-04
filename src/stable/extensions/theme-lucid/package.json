@@ -27,5 +27,6 @@
     "configurationDefaults": {
       "workbench.colorTheme": "Lucid Dark"
     }
-  }
+  },
+  "author": "Yiğit Güven"
 }

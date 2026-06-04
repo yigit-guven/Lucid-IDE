@@ -216,19 +216,14 @@
             `;
             // Click name to rename
             card.querySelector('.chat-session-name').addEventListener('click', () => {
-                const newName = prompt('Rename chat:', chat.name);
-                if (newName && newName.trim()) {
-                    vscode.postMessage({ command: 'renameChat', id: chat.id, name: newName.trim() });
-                }
+                vscode.postMessage({ command: 'requestRenameChat', id: chat.id, name: chat.name });
             });
             card.querySelector('.load-chat-btn').addEventListener('click', () => {
                 vscode.postMessage({ command: 'loadChat', id: chat.id });
                 closeChatsDrawer();
             });
             card.querySelector('.delete-chat-btn').addEventListener('click', () => {
-                if (confirm(`Delete "${chat.name}"?`)) {
-                    vscode.postMessage({ command: 'deleteChat', id: chat.id });
-                }
+                vscode.postMessage({ command: 'requestDeleteChat', id: chat.id, name: chat.name });
             });
             chatsList.appendChild(card);
         });
@@ -637,9 +632,7 @@
                     updateMainView();
                 });
                 card.querySelector('.delete-btn')?.addEventListener('click', () => {
-                    if (confirm(`Are you sure you want to delete ${model.name}?`)) {
-                        vscode.postMessage({ command: 'deleteModel', model: model.name });
-                    }
+                    vscode.postMessage({ command: 'requestDeleteModel', model: model.name });
                 });
             } else {
                 card.querySelector('.download-btn')?.addEventListener('click', () => {
@@ -667,7 +660,7 @@
             if (modelTag) {
                 vscode.postMessage({ command: 'pullModel', model: modelTag });
                 input.value = '';
-                alert(`Started downloading ${modelTag}. Check status at top of the panel.`);
+                showToast(`Started downloading ${modelTag}...`);
             }
         });
 
@@ -726,6 +719,7 @@
     }
 
     function updatePullError(model, errorMsg) {
+        showToast(`Failed to download ${model}: ${errorMsg}`);
         const cleanId = model.replace(/:/g, '-');
         const card = document.getElementById(`card-${cleanId}`);
         if (card) {
@@ -735,7 +729,6 @@
             progContainer.style.display = 'none';
             actionsContainer.style.display = 'flex';
         }
-        alert(`Failed to download ${model}: ${errorMsg}`);
     }
 
     function updateMainView() {

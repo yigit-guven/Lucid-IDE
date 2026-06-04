@@ -116,6 +116,31 @@ class ChatViewProvider {
                     this.sendChatList();
                     break;
                 }
+                case 'requestRenameChat': {
+                    const newName = await vscode.window.showInputBox({
+                        prompt: 'Enter new name for the chat session',
+                        value: data.name
+                    });
+                    if (newName !== undefined && newName.trim() !== '') {
+                        await this.renameChat(data.id, newName.trim());
+                    }
+                    break;
+                }
+                case 'requestDeleteChat': {
+                    const confirm = await vscode.window.showWarningMessage(`Are you sure you want to delete the chat "${data.name}"?`, { modal: true }, 'Delete');
+                    if (confirm === 'Delete') {
+                        await this.deleteChat(data.id);
+                    }
+                    break;
+                }
+                case 'requestDeleteModel': {
+                    const confirm = await vscode.window.showWarningMessage(`Are you sure you want to delete the model "${data.model}"?`, { modal: true }, 'Delete');
+                    if (confirm === 'Delete') {
+                        // Forward to deleteModel handler
+                        this.deleteModel(data.model);
+                    }
+                    break;
+                }
             }
         });
         // Check status on load

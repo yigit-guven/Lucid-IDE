@@ -33,6 +33,11 @@
     const sendBtn = document.getElementById('sendBtn');
     const inputToolbar = document.getElementById('inputToolbar');
     const quickCommitBtn = document.getElementById('quickCommitBtn');
+    const chatsHistoryBtn = document.getElementById('chatsHistoryBtn');
+    const chatsDrawer = document.getElementById('chatsDrawer');
+    const closeChatsDrawerBtn = document.getElementById('closeChatsDrawerBtn');
+    const saveCurrentChatBtn = document.getElementById('saveCurrentChatBtn');
+    const chatsList = document.getElementById('chatsList');
 
     // State
     let isConnected = false;
@@ -91,6 +96,18 @@
         openManagerBtn.addEventListener('click', openDrawer);
         modelSelectBtn.addEventListener('click', openDrawer);
         closeDrawerBtn.addEventListener('click', closeDrawer);
+
+        // Chats drawer
+        if (chatsHistoryBtn) chatsHistoryBtn.addEventListener('click', openChatsDrawer);
+        if (closeChatsDrawerBtn) closeChatsDrawerBtn.addEventListener('click', closeChatsDrawer);
+        if (saveCurrentChatBtn) {
+            saveCurrentChatBtn.addEventListener('click', () => {
+                if (chatHistory.length === 0) { showToast('Nothing to save — start a chat first.'); return; }
+                vscode.postMessage({ command: 'saveChat', name: '', model: selectedModel, messages: chatHistory });
+            });
+        }
+        // Load chats list when drawer opens
+        vscode.postMessage({ command: 'listChats' });
         
         sendBtn.addEventListener('click', submitPrompt);
         promptInput.addEventListener('keydown', (e) => {
@@ -153,10 +170,86 @@
 
     function openDrawer() {
         modelDrawer.style.display = 'flex';
+        if (chatsDrawer) chatsDrawer.style.display = 'none';
     }
 
     function closeDrawer() {
         modelDrawer.style.display = 'none';
+    }
+
+    function openChatsDrawer() {
+        if (chatsDrawer) {
+            chatsDrawer.style.display = 'flex';
+            modelDrawer.style.display = 'none';
+            vscode.postMessage({ command: 'listChats' });
+        }
+    }
+
+    function closeChatsDrawer() {
+        if (chatsDrawer) chatsDrawer.style.display = 'none';
+    }
+
+    function renderChatsList(chats) {
+        if (!chatsList) return;
+        chatsList.innerHTML = '';
+        if (!chats || chats.length === 0) {
+            chatsList.innerHTML = '<div style="padding:20px; text-align:center; opacity:0.55; font-size:12px;">No saved chats yet.<br>Click "Save Current Chat" to save one.</div>';
+            return;
+        }
+        chats.forEach(chat => {
+            const card = document.createElement('div');
+            card.className = 'model-card';
+            card.style.cssText = 'flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px;';
+            const date = new Date(chat.savedAt);
+            const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            card.innerHTML = `
+                <div style="width:100%; display:flex; align-items:flex-start; justify-content:space-between; gap:6px;">
+                    <div style="flex:1; min-width:0;">
+                        <div class="chat-session-name" data-id="${chat.id}" style="font-weight:600; font-size:12px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="Click to rename">${escapeHtml(chat.name)}</div>
+                        <div style="font-size:10px; opacity:0.55; margin-top:2px;">${dateStr} · ${chat.model || 'Unknown'} · ${chat.messageCount} msgs</div>
+                    </div>
+                    <div style="display:flex; gap:4px; flex-shrink:0;">
+                        <button class="btn btn-sm btn-secondary load-chat-btn" data-id="${chat.id}" style="padding:2px 7px; font-size:10px;">Load</button>
+                        <button class="btn btn-sm btn-danger delete-chat-btn" data-id="${chat.id}" style="padding:2px 7px; font-size:10px;">Delete</button>
+                    </div>
+                </div>
+            `;
+            // Click name to rename
+            card.querySelector('.chat-session-name').addEventListener('click', () => {
+                const newName = prompt('Rename chat:', chat.name);
+                if (newName && newName.trim()) {
+                    vscode.postMessage({ command: 'renameChat', id: chat.id, name: newName.trim() });
+                }
+            });
+            card.querySelector('.load-chat-btn').addEventListener('click', () => {
+                vscode.postMessage({ command: 'loadChat', id: chat.id });
+                closeChatsDrawer();
+            });
+            card.querySelector('.delete-chat-btn').addEventListener('click', () => {
+                if (confirm(`Delete "${chat.name}"?`)) {
+                    vscode.postMessage({ command: 'deleteChat', id: chat.id });
+                }
+            });
+            chatsList.appendChild(card);
+        });
+    }
+
+    function escapeHtml(str) {
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function showToast(msg) {
+        let toast = document.getElementById('chatToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'chatToast';
+            toast.style.cssText = 'position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:var(--brand-primary);color:#fff;padding:6px 14px;border-radius:6px;font-size:11px;z-index:9999;pointer-events:none;transition:opacity 0.3s;';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = msg;
+        toast.style.opacity = '1';
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
     }
 
     function submitPrompt() {
@@ -380,6 +473,36 @@
                 chatWelcome.style.display = 'none';
                 addMessageBubble('assistant', formatMarkdown(message.content));
                 break;
+
+            case 'chatList':
+                renderChatsList(message.chats);
+                break;
+
+            case 'chatSaved':
+                showToast(`✅ Chat saved: "${message.name.slice(0, 35)}"`);
+                vscode.postMessage({ command: 'listChats' });
+                break;
+
+            case 'chatLoaded': {
+                const loadedChat = message.chat;
+                // Clear current chat
+                chatHistory = [];
+                activeCodeBlocks = [];
+                messagesContainer.innerHTML = '';
+                chatWelcome.style.display = 'none';
+                // Restore model
+                if (loadedChat.model) {
+                    selectedModel = loadedChat.model;
+                    updateStatusBar();
+                }
+                // Replay messages
+                loadedChat.messages.forEach(m => {
+                    chatHistory.push(m);
+                    addMessageBubble(m.role, m.role === 'assistant' ? formatMarkdown(m.content) : escapeHtml(m.content));
+                });
+                showToast(`📂 Loaded: "${loadedChat.name.slice(0, 35)}"`);
+                break;
+            }
 
             case 'clearChat':
                 chatHistory = [];

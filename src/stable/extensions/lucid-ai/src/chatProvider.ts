@@ -100,6 +100,26 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     this.generateCommitMessage();
                     break;
                 }
+                case 'saveChat': {
+                    await this.saveChat(data.name, data.model, data.messages);
+                    break;
+                }
+                case 'loadChat': {
+                    await this.loadChat(data.id);
+                    break;
+                }
+                case 'deleteChat': {
+                    await this.deleteChat(data.id);
+                    break;
+                }
+                case 'renameChat': {
+                    await this.renameChat(data.id, data.name);
+                    break;
+                }
+                case 'listChats': {
+                    this.sendChatList();
+                    break;
+                }
             }
         });
 
@@ -534,6 +554,61 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    private getSavedChats(): any[] {
+        return this._context.globalState.get<any[]>('savedChats', []);
+    }
+
+    private async saveChat(name: string, model: string, messages: any[]) {
+        if (!this._view || messages.length === 0) return;
+        const chats = this.getSavedChats();
+        const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const autoName = name || (messages.find((m: any) => m.role === 'user')?.content?.slice(0, 50) ?? 'Untitled chat');
+        chats.unshift({ id, name: autoName, model, savedAt: Date.now(), messages });
+        // Keep max 50 chats
+        if (chats.length > 50) chats.splice(50);
+        await this._context.globalState.update('savedChats', chats);
+        this.sendChatList();
+        this._view.webview.postMessage({ command: 'chatSaved', name: autoName });
+    }
+
+    private async loadChat(id: string) {
+        if (!this._view) return;
+        const chats = this.getSavedChats();
+        const chat = chats.find((c: any) => c.id === id);
+        if (chat) {
+            this._view.webview.postMessage({ command: 'chatLoaded', chat });
+        }
+    }
+
+    private async deleteChat(id: string) {
+        const chats = this.getSavedChats().filter((c: any) => c.id !== id);
+        await this._context.globalState.update('savedChats', chats);
+        this.sendChatList();
+    }
+
+    private async renameChat(id: string, name: string) {
+        if (!name.trim()) return;
+        const chats = this.getSavedChats();
+        const chat = chats.find((c: any) => c.id === id);
+        if (chat) {
+            chat.name = name.trim();
+            await this._context.globalState.update('savedChats', chats);
+            this.sendChatList();
+        }
+    }
+
+    private sendChatList() {
+        if (!this._view) return;
+        const chats = this.getSavedChats().map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            model: c.model,
+            savedAt: c.savedAt,
+            messageCount: c.messages?.length ?? 0
+        }));
+        this._view.webview.postMessage({ command: 'chatList', chats });
+    }
+
     private async generateCommitMessage() {
         if (!this._view) return;
         const webview = this._view.webview;
@@ -763,11 +838,16 @@ ${workspaceContext}
                             <span class="status-dot"></span>
                             <span class="status-text">Checking Ollama...</span>
                         </div>
-                        <div class="active-model-container">
-                            <button class="model-select-btn" id="modelSelectBtn" disabled>
-                                <span class="active-model-name">No Model Selected</span>
-                                <span class="chevron-down"></span>
+                        <div class="status-bar-actions">
+                            <button class="icon-btn" id="chatsHistoryBtn" title="Chat History" style="opacity:0.7;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                             </button>
+                            <div class="active-model-container">
+                                <button class="model-select-btn" id="modelSelectBtn" disabled>
+                                    <span class="active-model-name">No Model Selected</span>
+                                    <span class="chevron-down"></span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -778,6 +858,23 @@ ${workspaceContext}
                             <button class="close-drawer-btn" id="closeDrawerBtn">&times;</button>
                         </div>
                         <div class="models-list" id="modelsList">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Chats History Drawer -->
+                    <div class="model-drawer" id="chatsDrawer">
+                        <div class="drawer-header">
+                            <h3>Chat History</h3>
+                            <button class="close-drawer-btn" id="closeChatsDrawerBtn">&times;</button>
+                        </div>
+                        <div style="padding: 10px 12px 6px;">
+                            <button class="btn btn-secondary" id="saveCurrentChatBtn" style="width:100%; font-size:11px; padding: 6px 10px;">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:5px; vertical-align:middle;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                                Save Current Chat
+                            </button>
+                        </div>
+                        <div class="models-list" id="chatsList">
                             <!-- Populated dynamically -->
                         </div>
                     </div>

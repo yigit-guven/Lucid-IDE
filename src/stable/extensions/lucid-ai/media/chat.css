@@ -270,12 +270,14 @@ html, body {
 }
 
 .btn-danger {
-    background: var(--vscode-errorForeground);
-    color: var(--vscode-button-foreground, white);
+    background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.05));
+    color: var(--vscode-errorForeground);
+    border: 1px solid var(--glass-border);
 }
 
 .btn-danger:hover {
-    background: var(--vscode-button-hoverBackground);
+    background: var(--vscode-errorForeground);
+    color: var(--vscode-button-foreground, white);
 }
 
 .btn:disabled {

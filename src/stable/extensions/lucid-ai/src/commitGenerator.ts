@@ -175,7 +175,7 @@ async function getRepository(git: any, uri?: any): Promise<any> {
         label: vscode.workspace.asRelativePath(r.rootUri),
         repository: r
     }));
-    const selected = await vscode.window.showQuickPick(items, {
+    const selected = await vscode.window.showQuickPick<{ label: string; repository: any }>(items, {
         placeHolder: 'Select SCM repository'
     });
     return selected ? selected.repository : undefined;

@@ -19,6 +19,10 @@
     const quickStartNotice = document.getElementById('quickStartNotice');
     const reconnectBtn = document.getElementById('reconnectBtn');
     const openManagerBtn = document.getElementById('openManagerBtn');
+    const installBtn = document.getElementById('installBtn');
+    const installProgressContainer = document.getElementById('installProgressContainer');
+    const installProgressBar = document.getElementById('installProgressBar');
+    const installStatusText = document.getElementById('installStatusText');
     
     const messagesContainer = document.getElementById('messagesContainer');
     const promptInput = document.getElementById('promptInput');
@@ -64,6 +68,9 @@
     function init() {
         // Event Listeners
         reconnectBtn.addEventListener('click', checkStatus);
+        if (installBtn) {
+            installBtn.addEventListener('click', startOllamaInstall);
+        }
         statusIndicator.addEventListener('click', checkStatus);
         openManagerBtn.addEventListener('click', openDrawer);
         modelSelectBtn.addEventListener('click', openDrawer);
@@ -229,9 +236,22 @@
                 isConnected = message.connected;
                 localModels = message.models;
                 
+                // Hide install container if connected successfully
+                if (isConnected && installProgressContainer) {
+                    installProgressContainer.style.display = 'none';
+                }
+                
                 updateStatusBar();
                 renderModelsDrawer();
                 updateMainView();
+                break;
+                
+            case 'installProgress':
+                showInstallProgress(message.percent, message.statusText);
+                break;
+                
+            case 'installError':
+                showInstallError(message.error);
                 break;
                 
             case 'pullProgress':
@@ -551,6 +571,32 @@
         const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function startOllamaInstall() {
+        installBtn.disabled = true;
+        installProgressContainer.style.display = 'block';
+        installProgressBar.style.width = '0%';
+        installProgressBar.style.backgroundColor = 'var(--brand-primary)';
+        installStatusText.innerText = 'Initializing...';
+        vscode.postMessage({ command: 'installOllama' });
+    }
+
+    function showInstallProgress(percent, statusText) {
+        installProgressBar.style.width = `${percent}%`;
+        installStatusText.innerText = statusText;
+        if (percent === 100) {
+            setTimeout(() => {
+                installProgressContainer.style.display = 'none';
+                installBtn.disabled = false;
+            }, 3000);
+        }
+    }
+
+    function showInstallError(errorMsg) {
+        installStatusText.innerText = `Error: ${errorMsg}`;
+        installProgressBar.style.backgroundColor = '#f43f5e';
+        installBtn.disabled = false;
     }
 
     // Run

@@ -97,13 +97,19 @@ Rules:
 Git diff (${isStaged ? 'staged' : 'unstaged'} changes):
 ${safeDiff}`;
 
+                    repository.inputBox.value = 'Thinking...';
+                    
                     const response = await fetch('http://127.0.0.1:11434/api/generate', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             model: selectedModel,
                             prompt: prompt,
-                            stream: false
+                            stream: true,
+                            options: {
+                                num_predict: 250,
+                                temperature: 0.2
+                            }
                         }),
                         signal: controller.signal
                     });
@@ -112,8 +118,30 @@ ${safeDiff}`;
                         throw new Error(`Ollama response error: ${response.statusText}`);
                     }
 
-                    const data = await response.json() as OllamaGenerateResponse;
-                    let message = data.response.trim();
+                    let message = '';
+                    if (response.body) {
+                        repository.inputBox.value = '';
+                        const decoder = new TextDecoder();
+                        // Support both Node.js streams and Web Streams
+                        for await (const chunk of response.body as any) {
+                            const text = typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
+                            const lines = text.split('\n');
+                            for (const line of lines) {
+                                if (!line.trim()) continue;
+                                try {
+                                    const parsed = JSON.parse(line);
+                                    if (parsed.response) {
+                                        message += parsed.response;
+                                        repository.inputBox.value = message;
+                                    }
+                                } catch (e) {
+                                    // Ignore partial JSON chunks
+                                }
+                            }
+                        }
+                    }
+
+                    message = message.trim();
 
                     // Strip markdown formatting if the model hallucinated it
                     if (message.startsWith('```')) {

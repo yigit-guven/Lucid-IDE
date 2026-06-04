@@ -38,30 +38,25 @@ function registerCommitGenerator(context) {
                 vscode.window.showErrorMessage('No local Ollama models found. Please make sure Ollama is running and you have downloaded at least one model.');
                 return;
             }
-            // 5. Present QuickPick to select model
+            // 5. Model Selection (skip prompt if we have a valid saved model)
             const lastModelKey = 'lucid.scm.lastSelectedModel';
-            const defaultModel = context.globalState.get(lastModelKey);
-            const quickPickItems = models.map(model => ({
-                label: model,
-                description: model === defaultModel ? '(last used)' : ''
-            }));
-            if (defaultModel) {
-                quickPickItems.sort((a, b) => {
-                    if (a.label === defaultModel)
-                        return -1;
-                    if (b.label === defaultModel)
-                        return 1;
-                    return 0;
+            let selectedModel = context.globalState.get(lastModelKey);
+            if (!selectedModel || !models.includes(selectedModel)) {
+                const quickPickItems = models.map(model => ({ label: model }));
+                const selectedItem = await vscode.window.showQuickPick(quickPickItems, {
+                    placeHolder: 'Select Ollama model for generating commit messages (will be saved)'
                 });
+                if (!selectedItem)
+                    return;
+                selectedModel = selectedItem.label;
+                await context.globalState.update(lastModelKey, selectedModel);
             }
-            const selectedItem = await vscode.window.showQuickPick(quickPickItems, {
-                placeHolder: 'Select Ollama model to generate commit message'
-            });
-            if (!selectedItem) {
-                return;
+            // Protect against massive diffs breaking context limits
+            const MAX_DIFF = 12000;
+            let safeDiff = diff;
+            if (diff.length > MAX_DIFF) {
+                safeDiff = diff.substring(0, MAX_DIFF) + '\n\n... (Diff truncated due to extreme length)';
             }
-            const selectedModel = selectedItem.label;
-            await context.globalState.update(lastModelKey, selectedModel);
             // 6. Generate message using local AI model
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
@@ -72,12 +67,17 @@ function registerCommitGenerator(context) {
                 token.onCancellationRequested(() => {
                     controller.abort();
                 });
-                const prompt = `You are an expert developer. Generate a clean Git commit message based on the following diff. 
-The commit message must consist of a short, descriptive title (first line, maximum 70 characters), followed by a blank line, and then a detailed description (optional bullet points listing the changes).
-Do NOT include any markdown code blocks, quotes, or conversational text (such as "Here is the commit message:"). Output ONLY the raw commit message.
+                const prompt = `You are an expert developer. Generate a clean, conventional Git commit message based on the following diff.
+Rules:
+1. Format MUST be: type(scope): short description
+2. Type MUST be one of: feat, fix, docs, style, refactor, perf, test, chore.
+3. The first line must be under 72 characters.
+4. Leave one blank line after the title.
+5. Provide a concise bulleted list of what actually changed.
+6. Output ONLY the raw commit message, NO markdown formatting (\`\`\`), NO quotes, NO conversational text.
 
 Git diff (${isStaged ? 'staged' : 'unstaged'} changes):
-${diff}`;
+${safeDiff}`;
                 const response = await fetch('http://127.0.0.1:11434/api/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -93,23 +93,19 @@ ${diff}`;
                 }
                 const data = await response.json();
                 let message = data.response.trim();
-                // Strip markdown formatting if any
+                // Strip markdown formatting if the model hallucinated it
                 if (message.startsWith('```')) {
                     const lines = message.split('\n');
-                    if (lines[0].startsWith('```')) {
+                    if (lines[0].startsWith('```'))
                         lines.shift();
-                    }
-                    if (lines.length > 0 && lines[lines.length - 1].startsWith('```')) {
+                    if (lines.length > 0 && lines[lines.length - 1].startsWith('```'))
                         lines.pop();
-                    }
                     message = lines.join('\n').trim();
                 }
-                if (message.startsWith('"') && message.endsWith('"')) {
+                if (message.startsWith('"') && message.endsWith('"'))
                     message = message.substring(1, message.length - 1).trim();
-                }
-                else if (message.startsWith("'") && message.endsWith("'")) {
+                if (message.startsWith("'") && message.endsWith("'"))
                     message = message.substring(1, message.length - 1).trim();
-                }
                 repository.inputBox.value = message;
             });
         }

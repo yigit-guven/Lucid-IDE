@@ -920,10 +920,6 @@ ${workspaceContext}
                     <!-- Input Box -->
                     <div class="input-panel">
                         <div class="input-toolbar" id="inputToolbar" style="display:none; padding: 4px 10px 0; gap: 6px; display: flex; flex-wrap: wrap;">
-                            <button class="btn btn-sm btn-secondary" id="quickCommitBtn" title="Generate a commit message from your current git diff" style="font-size: 10px; padding: 3px 8px; display:flex; align-items:center; gap:4px;">
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="7.05" y2="7.05"/><line x1="16.95" y1="16.95" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
-                                Quick Commit
-                            </button>
                         </div>
                         <div class="input-container">
                             <textarea id="promptInput" placeholder="Ask anything about coding..." rows="1" disabled></textarea>

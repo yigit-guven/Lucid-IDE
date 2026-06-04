@@ -32,7 +32,6 @@
     const promptInput = document.getElementById('promptInput');
     const sendBtn = document.getElementById('sendBtn');
     const inputToolbar = document.getElementById('inputToolbar');
-    const quickCommitBtn = document.getElementById('quickCommitBtn');
     const chatsHistoryBtn = document.getElementById('chatsHistoryBtn');
     const chatsDrawer = document.getElementById('chatsDrawer');
     const closeChatsDrawerBtn = document.getElementById('closeChatsDrawerBtn');
@@ -136,13 +135,6 @@
                 }
             }
         });
-
-        // Auto-resize textarea
-        if (quickCommitBtn) {
-            quickCommitBtn.addEventListener('click', () => {
-                vscode.postMessage({ command: 'generateCommit' });
-            });
-        }
 
         // Auto-resize textarea
         promptInput.addEventListener('input', () => {

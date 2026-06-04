@@ -181,11 +181,49 @@
                 const card = e.target.closest('.diff-card');
                 const path = card.querySelector('.file-path').textContent;
                 const search = card.querySelector('.patch-search').textContent;
-                const replace = card.querySelector('.patch-replace').textContent;
+                
+                const blocksJson = card.getAttribute('data-blocks');
+                let replace = '';
+                if (blocksJson) {
+                    const blocks = JSON.parse(blocksJson);
+                    const finalReplaceLines = [];
+                    blocks.forEach(block => {
+                        if (block.type === 'unchanged') {
+                            block.lines.forEach(l => finalReplaceLines.push(l.text));
+                        } else if (block.type === 'edit') {
+                            const cb = card.querySelector(`.hunk-checkbox[data-hunk-id="${block.id}"]`);
+                            const apply = cb ? cb.checked : true;
+                            block.lines.forEach(l => {
+                                if (apply) {
+                                    if (l.type === 'added') {
+                                        finalReplaceLines.push(l.text);
+                                    }
+                                } else {
+                                    if (l.type === 'removed') {
+                                        finalReplaceLines.push(l.text);
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    replace = finalReplaceLines.join('\n');
+                } else {
+                    replace = card.querySelector('.patch-replace').textContent;
+                }
+                
                 vscode.postMessage({ command: 'patchFile', path, search, replace });
                 e.target.disabled = true;
                 e.target.innerText = 'Applying...';
                 e.target.style.opacity = '0.6';
+            } else if (e.target.classList.contains('hunk-checkbox')) {
+                const hunkContainer = e.target.closest('.diff-hunk-container');
+                if (hunkContainer) {
+                    if (e.target.checked) {
+                        hunkContainer.classList.remove('excluded');
+                    } else {
+                        hunkContainer.classList.add('excluded');
+                    }
+                }
             } else if (e.target.classList.contains('question-opt-btn')) {
                 const answer = e.target.getAttribute('data-answer');
                 promptInput.value = `I select: ${answer}`;
@@ -441,6 +479,72 @@
         chatArea.scrollTop = chatArea.scrollHeight;
     }
 
+    function diffLines(oldLines, newLines) {
+        const M = oldLines.length;
+        const N = newLines.length;
+        const dp = Array.from({ length: M + 1 }, () => Array(N + 1).fill(0));
+        
+        for (let i = 1; i <= M; i++) {
+            for (let j = 1; j <= N; j++) {
+                if (oldLines[i - 1] === newLines[j - 1]) {
+                    dp[i][j] = dp[i - 1][j - 1] + 1;
+                } else {
+                    dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+                }
+            }
+        }
+        
+        const diff = [];
+        let i = M, j = N;
+        while (i > 0 || j > 0) {
+            if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+                diff.unshift({ type: 'unchanged', text: oldLines[i - 1] });
+                i--;
+                j--;
+            } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+                diff.unshift({ type: 'added', text: newLines[j - 1] });
+                j--;
+            } else {
+                diff.unshift({ type: 'removed', text: oldLines[i - 1] });
+                i--;
+            }
+        }
+        return diff;
+    }
+
+    function groupDiff(diff) {
+        const blocks = [];
+        let currentBlock = null;
+        
+        diff.forEach(item => {
+            const isEdit = (item.type === 'added' || item.type === 'removed');
+            
+            if (currentBlock === null) {
+                currentBlock = {
+                    type: isEdit ? 'edit' : 'unchanged',
+                    lines: [item],
+                    id: 'hunk_' + Math.random().toString(36).substring(2, 9)
+                };
+            } else if (currentBlock.type === 'edit' && isEdit) {
+                currentBlock.lines.push(item);
+            } else if (currentBlock.type === 'unchanged' && !isEdit) {
+                currentBlock.lines.push(item);
+            } else {
+                blocks.push(currentBlock);
+                currentBlock = {
+                    type: isEdit ? 'edit' : 'unchanged',
+                    lines: [item],
+                    id: 'hunk_' + Math.random().toString(36).substring(2, 9)
+                };
+            }
+        });
+        
+        if (currentBlock) {
+            blocks.push(currentBlock);
+        }
+        return blocks;
+    }
+
     function formatMarkdown(text) {
         // Escape HTML tags to prevent injections, keeping double-escapes safe
         let html = text
@@ -525,24 +629,56 @@
             const searchContent = searchMatch[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
             const replaceContent = replaceMatch[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
             
-            // Build visual diff
-            const searchLines = searchContent.split('\n');
-            const replaceLines = replaceContent.split('\n');
+            // Build visual diff using LCS
+            const searchLines = searchContent.split(/\r?\n/);
+            const replaceLines = replaceContent.split(/\r?\n/);
+            const diff = diffLines(searchLines, replaceLines);
+            const blocks = groupDiff(diff);
             
-            let diffLinesHtml = '';
-            searchLines.forEach(l => {
-                if (l.trim()) {
-                    diffLinesHtml += `<div class="diff-line removed">- ${escapeHtml(l)}</div>`;
+            let diffViewerHtml = '';
+            blocks.forEach(block => {
+                if (block.type === 'unchanged') {
+                    block.lines.forEach(l => {
+                        diffViewerHtml += `<div class="diff-line unchanged">  ${escapeHtml(l.text)}</div>`;
+                    });
+                } else if (block.type === 'edit') {
+                    const hasRemoved = block.lines.some(l => l.type === 'removed');
+                    const hasAdded = block.lines.some(l => l.type === 'added');
+                    
+                    let hunkHeaderLabel = 'Modify';
+                    if (!hasRemoved && hasAdded) hunkHeaderLabel = 'Insert';
+                    else if (hasRemoved && !hasAdded) hunkHeaderLabel = 'Delete';
+                    
+                    let hunkLinesHtml = '';
+                    block.lines.forEach(l => {
+                        const sign = l.type === 'added' ? '+' : '-';
+                        hunkLinesHtml += `<div class="diff-line ${l.type}">${sign} ${escapeHtml(l.text)}</div>`;
+                    });
+                    
+                    diffViewerHtml += `
+                        <div class="diff-hunk-container" data-hunk-id="${block.id}">
+                            <div class="diff-hunk-header">
+                                <div class="diff-hunk-header-left">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                    <span>${hunkHeaderLabel}</span>
+                                </div>
+                                <label class="diff-hunk-checkbox-label">
+                                    <input type="checkbox" class="hunk-checkbox" data-hunk-id="${block.id}" checked>
+                                    <span>Apply hunk</span>
+                                </label>
+                            </div>
+                            <div class="diff-hunk-body">
+                                ${hunkLinesHtml}
+                            </div>
+                        </div>
+                    `;
                 }
             });
-            replaceLines.forEach(l => {
-                if (l.trim()) {
-                    diffLinesHtml += `<div class="diff-line added">+ ${escapeHtml(l)}</div>`;
-                }
-            });
+            
+            const escapedBlocksJson = escapeHtml(JSON.stringify(blocks));
             
             return `
-                <div class="agent-tool-card diff-card">
+                <div class="agent-tool-card diff-card" data-blocks="${escapedBlocksJson}">
                     <div class="tool-card-header">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                         <span>Modify File: <strong class="file-path">${escapeHtml(path)}</strong></span>
@@ -550,7 +686,7 @@
                     <pre class="patch-search" style="display:none;">${escapeHtml(searchContent)}</pre>
                     <pre class="patch-replace" style="display:none;">${escapeHtml(replaceContent)}</pre>
                     <div class="diff-viewer">
-                        ${diffLinesHtml}
+                        ${diffViewerHtml}
                     </div>
                     <div class="tool-card-actions">
                         <button class="btn btn-sm btn-primary patch-file-tool-btn">Apply Changes</button>

@@ -74,6 +74,21 @@ export function registerCommitGenerator(context: vscode.ExtensionContext) {
                     safeDiff = diff.substring(0, MAX_DIFF) + '\n\n... (Diff truncated due to extreme length)';
                 }
 
+                // Parse the diff into clean English so tiny models (1B) don't get confused by diff syntax
+                const lines = safeDiff.split('\n');
+                let parsedDiff = '';
+                for (const line of lines) {
+                    if (line.startsWith('+++ b/')) {
+                        parsedDiff += `\nFile changed: ${line.substring(6)}\n`;
+                    } else if (line.startsWith('+') && !line.startsWith('+++')) {
+                        parsedDiff += `[ADDED] ${line.substring(1).trim()}\n`;
+                    } else if (line.startsWith('-') && !line.startsWith('---')) {
+                        parsedDiff += `[REMOVED] ${line.substring(1).trim()}\n`;
+                    }
+                }
+                parsedDiff = parsedDiff.trim();
+                if (!parsedDiff) parsedDiff = safeDiff; // Fallback
+
                 // 6. Generate message using local AI model
                 await vscode.window.withProgress({
                     location: vscode.ProgressLocation.Notification,
@@ -89,7 +104,7 @@ export function registerCommitGenerator(context: vscode.ExtensionContext) {
 Write a single, concise commit message summarizing the code changes.
 Output ONLY the message itself. No markdown, no quotes, no explanations, no lists.`;
 
-                    const userPrompt = `Code changes:\n${safeDiff}`;
+                    const userPrompt = `Code changes:\n${parsedDiff}`;
 
                     repository.inputBox.value = 'Thinking...';
                     

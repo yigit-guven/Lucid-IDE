@@ -1,40 +1,50 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ChatViewProvider = void 0;
-const vscode = __importStar(require("vscode"));
+const vscode = require("vscode");
+const DEFAULT_SYSTEM_PROMPT = `You are the built-in AI assistant for Lucid IDE, a professional coding assistant just like Google Antigravity. You are pair programming with the user.
+
+=== YOUR CAPABILITIES & WIDGETS ===
+1. **Running Terminal Commands**:
+   - To run a terminal command, output the command inside a <run_command>your command here</run_command> tag.
+   - Example: <run_command>npm install</run_command>
+
+2. **Writing Workspace Files**:
+   - To create a new file or completely overwrite a file, output a <write_file path="path/to/file">content</write_file> tag.
+   - Example:
+     <write_file path="src/index.js">
+     console.log("Hello World");
+     </write_file>
+
+3. **Modifying/Patching Files**:
+   - To modify an existing file, use the <patch_file> tag with exact <search> and <replace> blocks.
+   - Make sure the search block matches the target file content EXACTLY, including whitespace and indentation.
+   - Example:
+     <patch_file path="src/index.js">
+     <search>
+     console.log("Hello World");
+     </search>
+     <replace>
+     console.log("Hello Lucid");
+     </replace>
+     </patch_file>
+
+4. **Asking Multiple-Choice Questions**:
+   - If you need clarification or want to offer choices, output an <ask_question> tag with options.
+   - Example:
+     <ask_question question="Which database would you prefer to use?">
+       <option>MongoDB</option>
+       <option>PostgreSQL</option>
+     </ask_question>
+
+=== RULES & GUIDELINES ===
+- Act as a highly capable, autonomous developer agent. Proactively suggest file modifications, commands, and questions using these structured XML tags.
+- Always use the precise XML tag syntax shown above.
+- Make edits and run commands when requested. Do not just talk about them; provide the tags to execute them.
+
+=== LIVE PROJECT CONTEXT ===
+{workspaceContext}
+=== END CONTEXT ===`;
 class ChatViewProvider {
     _context;
     static viewType = 'lucid.chatView';
@@ -130,7 +140,7 @@ class ChatViewProvider {
                     break;
                 }
                 case 'saveChat': {
-                    await this.saveChat(data.name, data.model, data.messages);
+                    await this.saveChat(data.name, data.model, data.messages, data.id);
                     break;
                 }
                 case 'loadChat': {
@@ -171,6 +181,106 @@ class ChatViewProvider {
                     if (confirm === 'Delete') {
                         // Forward to deleteModel handler
                         this.deleteModel(data.model);
+                    }
+                    break;
+                }
+                case 'getSettings': {
+                    const systemPrompt = this._context.globalState.get('ai.settings.systemPrompt', DEFAULT_SYSTEM_PROMPT);
+                    const temperature = this._context.globalState.get('ai.settings.temperature', 0.2);
+                    const hostUrl = this._context.globalState.get('ai.settings.hostUrl', 'http://127.0.0.1:11434');
+                    const allowCommands = this._context.globalState.get('ai.settings.allowCommands', false);
+                    const allowWrite = this._context.globalState.get('ai.settings.allowWrite', false);
+                    const allowRead = this._context.globalState.get('ai.settings.allowRead', true);
+                    webviewView.webview.postMessage({
+                        command: 'settingsUpdate',
+                        settings: { systemPrompt, temperature, hostUrl, allowCommands, allowWrite, allowRead }
+                    });
+                    break;
+                }
+                case 'updateSettings': {
+                    const s = data.settings;
+                    await this._context.globalState.update('ai.settings.systemPrompt', s.systemPrompt);
+                    await this._context.globalState.update('ai.settings.temperature', s.temperature);
+                    await this._context.globalState.update('ai.settings.hostUrl', s.hostUrl);
+                    await this._context.globalState.update('ai.settings.allowCommands', s.allowCommands);
+                    await this._context.globalState.update('ai.settings.allowWrite', s.allowWrite);
+                    await this._context.globalState.update('ai.settings.allowRead', s.allowRead);
+                    vscode.window.showInformationMessage('Lucid AI settings updated.');
+                    break;
+                }
+                case 'writeFile': {
+                    const workspaceFolders = vscode.workspace.workspaceFolders;
+                    if (!workspaceFolders || workspaceFolders.length === 0) {
+                        vscode.window.showErrorMessage('No workspace open to write file.');
+                        break;
+                    }
+                    const path = require('path');
+                    const fs = require('fs');
+                    const fullPath = path.join(workspaceFolders[0].uri.fsPath, data.path);
+                    try {
+                        fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+                        fs.writeFileSync(fullPath, data.content, 'utf8');
+                        vscode.window.showInformationMessage(`Successfully created/updated: ${data.path}`);
+                        webviewView.webview.postMessage({ command: 'toolExecuted', tool: 'writeFile', path: data.path, success: true });
+                    }
+                    catch (e) {
+                        vscode.window.showErrorMessage(`Failed to write file ${data.path}: ${e.message}`);
+                        webviewView.webview.postMessage({ command: 'toolExecuted', tool: 'writeFile', path: data.path, success: false, error: e.message });
+                    }
+                    break;
+                }
+                case 'patchFile': {
+                    const workspaceFolders = vscode.workspace.workspaceFolders;
+                    if (!workspaceFolders || workspaceFolders.length === 0) {
+                        vscode.window.showErrorMessage('No workspace open to patch file.');
+                        break;
+                    }
+                    const path = require('path');
+                    const fs = require('fs');
+                    const fullPath = path.join(workspaceFolders[0].uri.fsPath, data.path);
+                    try {
+                        if (!fs.existsSync(fullPath)) {
+                            throw new Error(`File does not exist: ${data.path}`);
+                        }
+                        const content = fs.readFileSync(fullPath, 'utf8');
+                        const normalizedContent = content.replace(/\r\n/g, '\n');
+                        const normalizedSearch = data.search.replace(/\r\n/g, '\n');
+                        const normalizedReplace = data.replace.replace(/\r\n/g, '\n');
+                        if (!normalizedContent.includes(normalizedSearch)) {
+                            throw new Error(`Could not find the target search block in the file.`);
+                        }
+                        const patched = normalizedContent.replace(normalizedSearch, normalizedReplace);
+                        const finalContent = content.includes('\r\n') ? patched.replace(/\n/g, '\r\n') : patched;
+                        fs.writeFileSync(fullPath, finalContent, 'utf8');
+                        const doc = await vscode.workspace.openTextDocument(fullPath);
+                        await vscode.window.showTextDocument(doc);
+                        vscode.window.showInformationMessage(`Successfully applied patch to: ${data.path}`);
+                        webviewView.webview.postMessage({ command: 'toolExecuted', tool: 'patchFile', path: data.path, success: true });
+                    }
+                    catch (e) {
+                        vscode.window.showErrorMessage(`Failed to patch file ${data.path}: ${e.message}`);
+                        webviewView.webview.postMessage({ command: 'toolExecuted', tool: 'patchFile', path: data.path, success: false, error: e.message });
+                    }
+                    break;
+                }
+                case 'readFile': {
+                    const workspaceFolders = vscode.workspace.workspaceFolders;
+                    if (!workspaceFolders || workspaceFolders.length === 0) {
+                        webviewView.webview.postMessage({ command: 'fileReadResult', path: data.path, success: false, error: 'No workspace open' });
+                        break;
+                    }
+                    const path = require('path');
+                    const fs = require('fs');
+                    const fullPath = path.join(workspaceFolders[0].uri.fsPath, data.path);
+                    try {
+                        if (!fs.existsSync(fullPath)) {
+                            throw new Error('File not found');
+                        }
+                        const content = fs.readFileSync(fullPath, 'utf8');
+                        webviewView.webview.postMessage({ command: 'fileReadResult', path: data.path, success: true, content });
+                    }
+                    catch (e) {
+                        webviewView.webview.postMessage({ command: 'fileReadResult', path: data.path, success: false, error: e.message });
                     }
                     break;
                 }
@@ -580,19 +690,40 @@ class ChatViewProvider {
     getSavedChats() {
         return this._context.globalState.get('savedChats', []);
     }
-    async saveChat(name, model, messages) {
+    async saveChat(name, model, messages, id) {
         if (!this._view || messages.length === 0)
             return;
         const chats = this.getSavedChats();
-        const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
         const autoName = name || (messages.find((m) => m.role === 'user')?.content?.slice(0, 50) ?? 'Untitled chat');
-        chats.unshift({ id, name: autoName, model, savedAt: Date.now(), messages });
-        // Keep max 50 chats
-        if (chats.length > 50)
-            chats.splice(50);
-        await this._context.globalState.update('savedChats', chats);
-        this.sendChatList();
-        this._view.webview.postMessage({ command: 'chatSaved', name: autoName });
+        let existingChatIdx = -1;
+        if (id) {
+            existingChatIdx = chats.findIndex((c) => c.id === id);
+        }
+        if (existingChatIdx !== -1) {
+            // Update in-place
+            chats[existingChatIdx].messages = messages;
+            chats[existingChatIdx].model = model;
+            chats[existingChatIdx].savedAt = Date.now();
+            if (name)
+                chats[existingChatIdx].name = name;
+            // Move to top
+            const updatedChat = chats.splice(existingChatIdx, 1)[0];
+            chats.unshift(updatedChat);
+            await this._context.globalState.update('savedChats', chats);
+            this.sendChatList();
+            this._view.webview.postMessage({ command: 'chatSaved', name: chats[0].name, id: chats[0].id });
+        }
+        else {
+            // Create new
+            const newId = id || Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+            chats.unshift({ id: newId, name: autoName, model, savedAt: Date.now(), messages });
+            // Keep max 50 chats
+            if (chats.length > 50)
+                chats.splice(50);
+            await this._context.globalState.update('savedChats', chats);
+            this.sendChatList();
+            this._view.webview.postMessage({ command: 'chatSaved', name: autoName, id: newId });
+        }
     }
     async loadChat(id) {
         if (!this._view)
@@ -743,27 +874,9 @@ class ChatViewProvider {
                     workspaceContext += `Selected code in active file:\n\`\`\`${doc.languageId}\n${selectedText}\n\`\`\`\n`;
                 }
             }
-            // Create system prompt
-            const systemPromptContent = `You are the built-in AI assistant for Lucid IDE. You are pair programming with the user inside their IDE.
-
-=== YOUR CAPABILITIES ===
-- You have FULL READ access to the user's project state (git status, diffs, unpushed commits, open files) shown in the context below.
-- You CAN execute terminal commands: wrap any shell command in a \`\`\`bash code block and the IDE will show a clickable "Run" button next to it. This is how you commit, push, run builds, etc.
-- NEVER say you cannot access files, git history, or execute commands. You have all of this via the context and the Run button.
-
-=== HOW TO RUN GIT COMMANDS ===
-When the user asks you to commit, push, or run any command, provide the exact command(s) in a bash block like this:
-\`\`\`bash
-git add -A && git commit -m "your message here"
-\`\`\`
-The user will click "Run" and it executes in their terminal. Always do this instead of saying "I can't".
-
-=== COMMIT MESSAGE RULES ===
-When asked for a commit message, base it ONLY on the Git Diff shown in the context below. Do not invent changes. Format: conventional commits (feat/fix/refactor/docs/chore). Include a short title and a bullet-point body explaining what actually changed.
-
-=== LIVE PROJECT CONTEXT ===
-${workspaceContext}
-=== END CONTEXT ===`;
+            // Load settings
+            const rawSystemPrompt = this._context.globalState.get('ai.settings.systemPrompt', DEFAULT_SYSTEM_PROMPT);
+            const systemPromptContent = rawSystemPrompt.replace('{workspaceContext}', workspaceContext);
             // Inject context directly into the last user message so small models can't miss it
             const lastUserIdx = [...messages].map((m, i) => m.role === 'user' ? i : -1).filter(i => i !== -1).at(-1) ?? -1;
             const finalMessages = messages.map((m, i) => {
@@ -776,13 +889,18 @@ ${workspaceContext}
                 { role: 'system', content: systemPromptContent },
                 ...finalMessages
             ];
-            const response = await fetch('http://127.0.0.1:11434/api/chat', {
+            const temp = this._context.globalState.get('ai.settings.temperature', 0.2);
+            const hostUrl = this._context.globalState.get('ai.settings.hostUrl', 'http://127.0.0.1:11434');
+            const response = await fetch(`${hostUrl}/api/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: model,
                     messages: messagesForApi,
-                    stream: true
+                    stream: true,
+                    options: {
+                        temperature: temp
+                    }
                 })
             });
             if (!response.ok || !response.body) {
@@ -854,8 +972,14 @@ ${workspaceContext}
                             <span class="status-text">Checking Ollama...</span>
                         </div>
                         <div class="status-bar-actions">
+                            <button class="icon-btn" id="newChatBtn" title="New Chat" style="opacity:0.7;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                            </button>
                             <button class="icon-btn" id="chatsHistoryBtn" title="Chat History" style="opacity:0.7;">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            </button>
+                            <button class="icon-btn" id="settingsBtn" title="AI Settings" style="opacity:0.7;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                             </button>
                             <div class="active-model-container">
                                 <button class="model-select-btn" id="modelSelectBtn" disabled>
@@ -883,14 +1007,73 @@ ${workspaceContext}
                             <h3>Chat History</h3>
                             <button class="close-drawer-btn" id="closeChatsDrawerBtn">&times;</button>
                         </div>
-                        <div style="padding: 10px 12px 6px;">
-                            <button class="btn btn-secondary" id="saveCurrentChatBtn" style="width:100%; font-size:11px; padding: 6px 10px;">
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:5px; vertical-align:middle;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        <div class="chats-drawer-actions">
+                            <button class="btn btn-secondary" id="saveCurrentChatBtn">
+                                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                                 Save Current Chat
                             </button>
                         </div>
                         <div class="models-list" id="chatsList">
                             <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Settings Drawer -->
+                    <div class="model-drawer" id="settingsDrawer">
+                        <div class="drawer-header">
+                            <h3>AI Settings</h3>
+                            <button class="close-drawer-btn" id="closeSettingsDrawerBtn">&times;</button>
+                        </div>
+                        <div class="settings-content">
+                            
+                            <div class="form-group">
+                                <label class="form-label">System Prompt</label>
+                                <textarea id="settingsSystemPrompt" class="form-textarea" rows="8"></textarea>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group flex-1">
+                                    <label class="form-label">Temperature</label>
+                                    <input type="number" id="settingsTemperature" class="form-input" min="0" max="1" step="0.1">
+                                </div>
+                                <div class="form-group flex-2">
+                                    <label class="form-label">Ollama Host URL</label>
+                                    <input type="text" id="settingsHostUrl" class="form-input">
+                                </div>
+                            </div>
+
+                            <hr class="form-divider">
+                            
+                            <label class="form-section-header">Autopilot Permissions</label>
+                            
+                            <div class="permission-item">
+                                <div class="permission-info">
+                                    <div class="permission-title">Run Terminal Commands</div>
+                                    <div class="permission-desc">Allow running terminal commands / scripts automatically.</div>
+                                </div>
+                                <input type="checkbox" id="settingsAllowCommands">
+                            </div>
+                            
+                            <div class="permission-item">
+                                <div class="permission-info">
+                                    <div class="permission-title">Modify Workspace Files</div>
+                                    <div class="permission-desc">Allow creating and patching files automatically.</div>
+                                </div>
+                                <input type="checkbox" id="settingsAllowWrite">
+                            </div>
+                            
+                            <div class="permission-item">
+                                <div class="permission-info">
+                                    <div class="permission-title">Read Workspace Files</div>
+                                    <div class="permission-desc">Allow scanning project workspace files.</div>
+                                </div>
+                                <input type="checkbox" id="settingsAllowRead">
+                            </div>
+                            
+                            <div class="settings-footer">
+                                <button class="btn btn-secondary" id="resetSettingsBtn">Reset</button>
+                                <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+                            </div>
                         </div>
                     </div>
 
@@ -906,10 +1089,10 @@ ${workspaceContext}
                                 <p>This IDE connects to a local instance of <strong>Ollama</strong> to run AI models on your own machine.</p>
                                 
                                 <!-- Customization Form -->
-                                <div class="setup-form" id="setupForm" style="margin-top: 12px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px;">
-                                    <div class="form-group" style="display: flex; flex-direction: column; gap: 4px;">
-                                        <label style="font-size: 9px; font-weight: 600; opacity: 0.8; letter-spacing: 0.5px;">OLLAMA VERSION</label>
-                                        <select id="ollamaVersionSelect" style="background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-settings-textInputBorder, var(--glass-border)); padding: 4px 6px; border-radius: 4px; font-size: 11px; outline: none; font-family: inherit;">
+                                <div class="setup-form" id="setupForm">
+                                    <div class="form-group">
+                                        <label class="form-label">Ollama Version</label>
+                                        <select id="ollamaVersionSelect" class="form-select">
                                             <option value="latest">Latest Release (Recommended)</option>
                                             <option value="0.5.4">v0.5.4</option>
                                             <option value="0.4.4">v0.4.4</option>
@@ -917,27 +1100,27 @@ ${workspaceContext}
                                             <option value="0.2.1">v0.2.1</option>
                                         </select>
                                     </div>
-                                    <div class="form-group" style="display: flex; flex-direction: column; gap: 4px;">
-                                        <label style="font-size: 9px; font-weight: 600; opacity: 0.8; letter-spacing: 0.5px;">INSTALL DIRECTORY</label>
-                                        <div style="display: flex; gap: 4px; align-items: center;">
-                                            <input type="text" id="installDirInput" style="flex: 1; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-settings-textInputBorder, var(--glass-border)); padding: 4px 6px; border-radius: 4px; font-size: 11px; outline: none; font-family: inherit;" readonly>
-                                            <button class="btn btn-secondary" id="browseDirBtn" style="padding: 4px 8px; font-size: 11px; white-space: nowrap;">Browse...</button>
+                                    <div class="form-group">
+                                        <label class="form-label">Install Directory</label>
+                                        <div class="install-dir-row">
+                                            <input type="text" id="installDirInput" class="form-input" readonly>
+                                            <button class="btn btn-secondary" id="browseDirBtn">Browse...</button>
                                         </div>
-                                        <span style="font-size: 9px; opacity: 0.6; line-height: 1.2;">Default: inside Lucid IDE folders (portable mode).</span>
+                                        <span class="form-help-text">Default: inside Lucid IDE folders (portable mode).</span>
                                     </div>
                                 </div>
 
-                                <div class="setup-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                    <button class="btn btn-primary" id="installBtn" style="flex: 1; white-space: nowrap;">Install & Start Ollama</button>
+                                <div class="setup-actions">
+                                    <button class="btn btn-primary" id="installBtn">Install & Start Ollama</button>
                                     <button class="btn btn-secondary" id="reconnectBtn">Reconnect</button>
                                 </div>
-                                <div class="install-progress-container" id="installProgressContainer" style="display: none; margin-top: 15px; width: 100%;">
-                                    <div class="progress-bar-bg" style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-bottom: 6px;">
-                                        <div class="progress-bar-fill" id="installProgressBar" style="width: 0%; height: 100%; background: var(--brand-primary); transition: width 0.3s;"></div>
+                                <div class="install-progress-container" id="installProgressContainer">
+                                    <div class="progress-bar-bg">
+                                        <div class="progress-bar-fill" id="installProgressBar"></div>
                                     </div>
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; gap: 8px;">
-                                        <p id="installStatusText" style="font-size: 10px; opacity: 0.8; margin: 0; word-break: break-all; flex: 1; line-height: 1.2;">Initializing installation...</p>
-                                        <button class="btn btn-sm btn-danger" id="cancelInstallBtn" style="padding: 2px 6px; font-size: 9px; white-space: nowrap;">Cancel</button>
+                                    <div class="progress-status-row">
+                                        <p id="installStatusText" class="progress-status-text">Initializing installation...</p>
+                                        <button class="btn btn-sm btn-danger" id="cancelInstallBtn">Cancel</button>
                                     </div>
                                 </div>
                             </div>

@@ -665,3 +665,422 @@ html, body {
     50% { transform: translateY(-3px); opacity: 1; }
     100% { transform: translateY(0px); opacity: 0.4; }
 }
+
+/* Agent Tool Cards */
+.agent-tool-card {
+    background: var(--vscode-editor-background, rgba(30, 30, 30, 0.6));
+    border: 1px solid var(--vscode-focusBorder, var(--brand-primary));
+    border-radius: 6px;
+    padding: 10px;
+    margin: 8px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.tool-card-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.9;
+    color: var(--brand-primary);
+}
+
+.tool-card-header svg {
+    flex-shrink: 0;
+}
+
+.tool-card-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.tool-code-preview {
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--glass-border);
+    padding: 6px;
+    border-radius: 4px;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 10px;
+    overflow-x: auto;
+    max-height: 120px;
+    margin: 0;
+}
+
+.tool-details {
+    width: 100%;
+}
+
+.tool-details summary {
+    font-size: 10px;
+    cursor: pointer;
+    opacity: 0.7;
+    margin-bottom: 4px;
+    outline: none;
+}
+
+.tool-details summary:hover {
+    opacity: 1;
+}
+
+/* Diff Viewer */
+.diff-viewer {
+    background: var(--vscode-textCodeBlock-background, #1e1e1e);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 10px;
+    overflow-x: auto;
+    max-height: 160px;
+    display: flex;
+    flex-direction: column;
+    padding: 4px 0;
+}
+
+.diff-line {
+    padding: 2px 8px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.35;
+}
+
+.diff-line.removed {
+    background: rgba(244, 63, 94, 0.18);
+    color: #f43f5e;
+}
+
+.diff-line.added {
+    background: rgba(16, 185, 129, 0.18);
+    color: #10b981;
+}
+
+/* Question Cards */
+.question-body {
+    font-size: 11px;
+    font-weight: 500;
+    margin-bottom: 2px;
+    line-height: 1.35;
+}
+
+.question-options {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 4px;
+}
+
+.question-opt-btn {
+    background: var(--vscode-input-background, rgba(0,0,0,0.1));
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--glass-border);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, border-color 0.15s;
+    outline: none;
+}
+
+.question-opt-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--brand-primary);
+}
+
+.question-opt-btn:disabled {
+    cursor: not-allowed;
+}
+
+/* Settings Permissions Styling */
+.permission-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px;
+    background: rgba(0,0,0,0.1);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    margin-bottom: 4px;
+}
+
+.permission-item input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--brand-primary);
+}
+
+/* Settings drawer content layout */
+.settings-content {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: calc(100% - 40px);
+    overflow-y: auto;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.form-group.flex-1 {
+    flex: 1;
+}
+
+.form-group.flex-2 {
+    flex: 2;
+}
+
+.form-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.form-label {
+    font-size: 9px;
+    font-weight: 600;
+    opacity: 0.8;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.form-textarea {
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-settings-textInputBorder, var(--glass-border));
+    padding: 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    outline: none;
+    font-family: var(--vscode-editor-font-family, monospace);
+    resize: vertical;
+}
+.form-textarea:focus {
+    border-color: var(--vscode-focusBorder);
+}
+
+.form-input {
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-settings-textInputBorder, var(--glass-border));
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    outline: none;
+}
+.form-input:focus {
+    border-color: var(--vscode-focusBorder);
+}
+
+.form-divider {
+    border: 0;
+    border-top: 1px solid var(--glass-border);
+    margin: 6px 0;
+}
+
+.form-section-header {
+    font-size: 9px;
+    font-weight: 600;
+    opacity: 0.8;
+    letter-spacing: 0.5px;
+    margin-bottom: -4px;
+    text-transform: uppercase;
+}
+
+.permission-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.permission-title {
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.permission-desc {
+    font-size: 9px;
+    opacity: 0.6;
+    line-height: 1.2;
+}
+
+.settings-footer {
+    margin-top: auto;
+    display: flex;
+    gap: 8px;
+    padding-top: 10px;
+}
+
+/* Welcome Page / Setup Styling */
+.form-select {
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-settings-textInputBorder, var(--glass-border));
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    outline: none;
+    font-family: inherit;
+}
+.form-select:focus {
+    border-color: var(--vscode-focusBorder);
+}
+
+.install-dir-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.install-dir-row .form-input {
+    flex: 1;
+}
+
+.form-help-text {
+    font-size: 9px;
+    opacity: 0.6;
+    line-height: 1.2;
+}
+
+.setup-form {
+    margin-top: 12px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.setup-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.install-progress-container {
+    display: none;
+    margin-top: 15px;
+    width: 100%;
+}
+
+.progress-bar-bg {
+    width: 100%;
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.progress-bar-fill {
+    width: 0%;
+    height: 100%;
+    background: var(--brand-primary);
+    transition: width 0.3s;
+}
+
+.progress-status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+    gap: 8px;
+}
+
+.progress-status-text {
+    font-size: 10px;
+    opacity: 0.8;
+    margin: 0;
+    word-break: break-all;
+    flex: 1;
+    line-height: 1.2;
+}
+
+/* Chat Card inside drawer styling */
+.chats-drawer-actions {
+    padding: 10px 12px 6px;
+}
+
+.chats-drawer-actions .btn {
+    width: 100%;
+    font-size: 11px;
+    padding: 6px 10px;
+}
+
+.btn-icon {
+    width: 11px;
+    height: 11px;
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+.chat-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 10px 12px;
+}
+
+.chat-card-row {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.chat-card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.chat-session-name {
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-card-meta {
+    font-size: 10px;
+    opacity: 0.55;
+    margin-top: 2px;
+}
+
+.chat-card-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.chat-card-actions .btn {
+    padding: 2px 7px;
+    font-size: 10px;
+}
+
+/* Toast styling */
+#chatToast {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--brand-primary);
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 11px;
+    z-index: 9999;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    opacity: 0;
+}
+

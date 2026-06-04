@@ -38,6 +38,19 @@
     const saveCurrentChatBtn = document.getElementById('saveCurrentChatBtn');
     const chatsList = document.getElementById('chatsList');
 
+    const newChatBtn = document.getElementById('newChatBtn');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsDrawer = document.getElementById('settingsDrawer');
+    const closeSettingsDrawerBtn = document.getElementById('closeSettingsDrawerBtn');
+    const settingsSystemPrompt = document.getElementById('settingsSystemPrompt');
+    const settingsTemperature = document.getElementById('settingsTemperature');
+    const settingsHostUrl = document.getElementById('settingsHostUrl');
+    const settingsAllowCommands = document.getElementById('settingsAllowCommands');
+    const settingsAllowWrite = document.getElementById('settingsAllowWrite');
+    const settingsAllowRead = document.getElementById('settingsAllowRead');
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    const resetSettingsBtn = document.getElementById('resetSettingsBtn');
+
     // State
     let isConnected = false;
     let localModels = []; // Models actually downloaded in Ollama
@@ -46,9 +59,16 @@
     let isGenerating = false;
     let activeAssistantBubble = null;
     let activeResponseText = '';
-    
-    // Code blocks store for copy/insert actions
-    let activeCodeBlocks = [];
+    let activeSessionId = null; // Session ID tracking
+    let appSettings = {
+        systemPrompt: '',
+        temperature: 0.2,
+        hostUrl: 'http://127.0.0.1:11434',
+        allowCommands: false,
+        allowWrite: false,
+        allowRead: true
+    };
+
 
     // Recommended models list
     const recommendedModels = [
@@ -96,17 +116,29 @@
         modelSelectBtn.addEventListener('click', openDrawer);
         closeDrawerBtn.addEventListener('click', closeDrawer);
 
+        // Settings drawer
+        if (settingsBtn) settingsBtn.addEventListener('click', openSettingsDrawer);
+        if (closeSettingsDrawerBtn) closeSettingsDrawerBtn.addEventListener('click', closeSettingsDrawer);
+        if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', saveSettings);
+        if (resetSettingsBtn) resetSettingsBtn.addEventListener('click', resetSettings);
+
+        // New Chat
+        if (newChatBtn) newChatBtn.addEventListener('click', startNewChat);
+
         // Chats drawer
         if (chatsHistoryBtn) chatsHistoryBtn.addEventListener('click', openChatsDrawer);
         if (closeChatsDrawerBtn) closeChatsDrawerBtn.addEventListener('click', closeChatsDrawer);
         if (saveCurrentChatBtn) {
             saveCurrentChatBtn.addEventListener('click', () => {
                 if (chatHistory.length === 0) { showToast('Nothing to save — start a chat first.'); return; }
-                vscode.postMessage({ command: 'saveChat', name: '', model: selectedModel, messages: chatHistory });
+                vscode.postMessage({ command: 'saveChat', id: activeSessionId, name: '', model: selectedModel, messages: chatHistory });
             });
         }
         // Load chats list when drawer opens
         vscode.postMessage({ command: 'listChats' });
+        
+        // Fetch saved settings
+        vscode.postMessage({ command: 'getSettings' });
         
         sendBtn.addEventListener('click', submitPrompt);
         promptInput.addEventListener('keydown', (e) => {
@@ -116,23 +148,55 @@
             }
         });
 
-        // Event delegation for copy, insert & run buttons in code blocks
+        // Event delegation for copy, insert & run buttons in code blocks and tools
         messagesContainer.addEventListener('click', (e) => {
             if (e.target.classList.contains('copy-btn')) {
-                const idx = parseInt(e.target.getAttribute('data-index'), 10);
-                if (activeCodeBlocks[idx]) {
-                    vscode.postMessage({ command: 'copyCode', code: activeCodeBlocks[idx] });
-                }
+                const container = e.target.closest('.code-block-container');
+                const code = container.querySelector('.code-block-body .code-content').textContent;
+                vscode.postMessage({ command: 'copyCode', code });
             } else if (e.target.classList.contains('insert-btn')) {
-                const idx = parseInt(e.target.getAttribute('data-index'), 10);
-                if (activeCodeBlocks[idx]) {
-                    vscode.postMessage({ command: 'insertCode', code: activeCodeBlocks[idx] });
-                }
+                const container = e.target.closest('.code-block-container');
+                const code = container.querySelector('.code-block-body .code-content').textContent;
+                vscode.postMessage({ command: 'insertCode', code });
             } else if (e.target.classList.contains('run-btn')) {
-                const idx = parseInt(e.target.getAttribute('data-index'), 10);
-                if (activeCodeBlocks[idx]) {
-                    vscode.postMessage({ command: 'runInTerminal', code: activeCodeBlocks[idx] });
-                }
+                const container = e.target.closest('.code-block-container');
+                const code = container.querySelector('.code-block-body .code-content').textContent;
+                vscode.postMessage({ command: 'runInTerminal', code });
+            } else if (e.target.classList.contains('run-cmd-tool-btn')) {
+                const card = e.target.closest('.command-card');
+                const code = card.querySelector('.command-code').textContent;
+                vscode.postMessage({ command: 'runInTerminal', code });
+                e.target.disabled = true;
+                e.target.innerText = 'Running...';
+                e.target.style.opacity = '0.6';
+            } else if (e.target.classList.contains('write-file-tool-btn')) {
+                const card = e.target.closest('.file-card');
+                const path = card.querySelector('.file-path').textContent;
+                const content = card.querySelector('.file-content').textContent;
+                vscode.postMessage({ command: 'writeFile', path, content });
+                e.target.disabled = true;
+                e.target.innerText = 'Writing...';
+                e.target.style.opacity = '0.6';
+            } else if (e.target.classList.contains('patch-file-tool-btn')) {
+                const card = e.target.closest('.diff-card');
+                const path = card.querySelector('.file-path').textContent;
+                const search = card.querySelector('.patch-search').textContent;
+                const replace = card.querySelector('.patch-replace').textContent;
+                vscode.postMessage({ command: 'patchFile', path, search, replace });
+                e.target.disabled = true;
+                e.target.innerText = 'Applying...';
+                e.target.style.opacity = '0.6';
+            } else if (e.target.classList.contains('question-opt-btn')) {
+                const answer = e.target.getAttribute('data-answer');
+                promptInput.value = `I select: ${answer}`;
+                const siblingBtns = e.target.parentNode.querySelectorAll('.question-opt-btn');
+                siblingBtns.forEach(btn => {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                });
+                e.target.style.border = '2px solid var(--brand-primary)';
+                e.target.style.opacity = '1';
+                submitPrompt();
             }
         });
 
@@ -154,6 +218,99 @@
         // Initialize state
         checkStatus();
         setInterval(checkStatus, 30000); // Check status every 30s
+    }
+
+    function openSettingsDrawer() {
+        if (settingsDrawer) {
+            settingsDrawer.style.display = 'flex';
+            modelDrawer.style.display = 'none';
+            if (chatsDrawer) chatsDrawer.style.display = 'none';
+            vscode.postMessage({ command: 'getSettings' });
+        }
+    }
+
+    function closeSettingsDrawer() {
+        if (settingsDrawer) settingsDrawer.style.display = 'none';
+    }
+
+    function saveSettings() {
+        if (!settingsSystemPrompt) return;
+        const systemPrompt = settingsSystemPrompt.value;
+        const temperature = parseFloat(settingsTemperature.value) || 0.2;
+        const hostUrl = settingsHostUrl.value || 'http://127.0.0.1:11434';
+        const allowCommands = settingsAllowCommands.checked;
+        const allowWrite = settingsAllowWrite.checked;
+        const allowRead = settingsAllowRead.checked;
+        
+        appSettings = { systemPrompt, temperature, hostUrl, allowCommands, allowWrite, allowRead };
+        
+        vscode.postMessage({
+            command: 'updateSettings',
+            settings: appSettings
+        });
+        closeSettingsDrawer();
+    }
+
+    function resetSettings() {
+        const defaultPrompt = `You are the built-in AI assistant for Lucid IDE, a professional coding assistant just like Google Antigravity. You are pair programming with the user.
+
+=== YOUR CAPABILITIES & WIDGETS ===
+1. **Running Terminal Commands**:
+   - To run a terminal command, output the command inside a <run_command>your command here</run_command> tag.
+   - Example: <run_command>npm install</run_command>
+
+2. **Writing Workspace Files**:
+   - To create a new file or completely overwrite a file, output a <write_file path="path/to/file">content</write_file> tag.
+   - Example:
+     <write_file path="src/index.js">
+     console.log("Hello World");
+     </write_file>
+
+3. **Modifying/Patching Files**:
+   - To modify an existing file, use the <patch_file> tag with exact <search> and <replace> blocks.
+   - Make sure the search block matches the target file content EXACTLY, including whitespace and indentation.
+   - Example:
+     <patch_file path="src/index.js">
+     <search>
+     console.log("Hello World");
+     </search>
+     <replace>
+     console.log("Hello Lucid");
+     </replace>
+     </patch_file>
+
+4. **Asking Multiple-Choice Questions**:
+   - If you need clarification or want to offer choices, output an <ask_question> tag with options.
+   - Example:
+     <ask_question question="Which database would you prefer to use?">
+       <option>MongoDB</option>
+       <option>PostgreSQL</option>
+     </ask_question>
+
+=== RULES & GUIDELINES ===
+- Act as a highly capable, autonomous developer agent. Proactively suggest file modifications, commands, and questions using these structured XML tags.
+- Always use the precise XML tag syntax shown above.
+- Make edits and run commands when requested. Do not just talk about them; provide the tags to execute them.
+
+=== LIVE PROJECT CONTEXT ===
+{workspaceContext}
+=== END CONTEXT ===`;
+
+        if (settingsSystemPrompt) settingsSystemPrompt.value = defaultPrompt;
+        if (settingsTemperature) settingsTemperature.value = 0.2;
+        if (settingsHostUrl) settingsHostUrl.value = 'http://127.0.0.1:11434';
+        if (settingsAllowCommands) settingsAllowCommands.checked = false;
+        if (settingsAllowWrite) settingsAllowWrite.checked = false;
+        if (settingsAllowRead) settingsAllowRead.checked = true;
+    }
+
+    function startNewChat() {
+        activeSessionId = null;
+        chatHistory = [];
+        messagesContainer.innerHTML = '';
+        chatWelcome.style.display = 'flex';
+        updateMainView();
+        showToast('🧹 New chat session started');
     }
 
     function checkStatus() {
@@ -190,19 +347,18 @@
         }
         chats.forEach(chat => {
             const card = document.createElement('div');
-            card.className = 'model-card';
-            card.style.cssText = 'flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px;';
+            card.className = 'model-card chat-card';
             const date = new Date(chat.savedAt);
             const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             card.innerHTML = `
-                <div style="width:100%; display:flex; align-items:flex-start; justify-content:space-between; gap:6px;">
-                    <div style="flex:1; min-width:0;">
-                        <div class="chat-session-name" data-id="${chat.id}" style="font-weight:600; font-size:12px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="Click to rename">${escapeHtml(chat.name)}</div>
-                        <div style="font-size:10px; opacity:0.55; margin-top:2px;">${dateStr} · ${chat.model || 'Unknown'} · ${chat.messageCount} msgs</div>
+                <div class="chat-card-row">
+                    <div class="chat-card-info">
+                        <div class="chat-session-name" data-id="${chat.id}" title="Click to rename">${escapeHtml(chat.name)}</div>
+                        <div class="chat-card-meta">${dateStr} · ${chat.model || 'Unknown'} · ${chat.messageCount} msgs</div>
                     </div>
-                    <div style="display:flex; gap:4px; flex-shrink:0;">
-                        <button class="btn btn-sm btn-secondary load-chat-btn" data-id="${chat.id}" style="padding:2px 7px; font-size:10px;">Load</button>
-                        <button class="btn btn-sm btn-danger delete-chat-btn" data-id="${chat.id}" style="padding:2px 7px; font-size:10px;">Delete</button>
+                    <div class="chat-card-actions">
+                        <button class="btn btn-sm btn-secondary load-chat-btn" data-id="${chat.id}">Load</button>
+                        <button class="btn btn-sm btn-danger delete-chat-btn" data-id="${chat.id}">Delete</button>
                     </div>
                 </div>
             `;
@@ -230,7 +386,6 @@
         if (!toast) {
             toast = document.createElement('div');
             toast.id = 'chatToast';
-            toast.style.cssText = 'position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:var(--brand-primary);color:#fff;padding:6px 14px;border-radius:6px;font-size:11px;z-index:9999;pointer-events:none;transition:opacity 0.3s;';
             document.body.appendChild(toast);
         }
         toast.textContent = msg;
@@ -293,18 +448,127 @@
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
 
+        // Parse ask_question tag: &lt;ask_question question=&quot;...&quot;&gt;...&lt;/ask_question&gt;
+        html = html.replace(/&lt;ask_question\s+question=(?:&quot;|&#39;|"|')([^"'\n>]+?)(?:&quot;|&#39;|"|')&gt;([\s\S]*?)&lt;\/ask_question&gt;/gi, (match, question, optionsText) => {
+            const options = [];
+            const optionRegex = /&lt;option&gt;([\s\S]*?)&lt;\/option&gt;/gi;
+            let m;
+            while ((m = optionRegex.exec(optionsText)) !== null) {
+                options.push(m[1].trim());
+            }
+            
+            const optionsHtml = options.map(opt => `
+                <button class="question-opt-btn" data-answer="${opt}">${opt}</button>
+            `).join('');
+            
+            return `
+                <div class="agent-tool-card question-card">
+                    <div class="tool-card-header">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        <span>Question</span>
+                    </div>
+                    <div class="question-body">${question}</div>
+                    <div class="question-options">
+                        ${optionsHtml}
+                    </div>
+                </div>
+            `;
+        });
+
+        // Parse run_command tag: &lt;run_command&gt;...&lt;/run_command&gt;
+        html = html.replace(/&lt;run_command&gt;([\s\S]*?)&lt;\/run_command&gt;/gi, (match, cmd) => {
+            const trimmedCmd = cmd.trim().replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+            
+            return `
+                <div class="agent-tool-card command-card">
+                    <div class="tool-card-header">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        <span>Execute Terminal Command</span>
+                    </div>
+                    <pre class="tool-code-preview"><code class="command-code">${escapeHtml(trimmedCmd)}</code></pre>
+                    <div class="tool-card-actions">
+                        <button class="btn btn-sm btn-primary run-cmd-tool-btn">Run Command</button>
+                    </div>
+                </div>
+            `;
+        });
+
+        // Parse write_file tag: &lt;write_file path=&quot;...&quot;&gt;...&lt;/write_file&gt;
+        html = html.replace(/&lt;write_file\s+path=(?:&quot;|&#39;|"|')([^"'\n>]+?)(?:&quot;|&#39;|"|')&gt;([\s\S]*?)&lt;\/write_file&gt;/gi, (match, path, content) => {
+            const unescapedContent = content.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+            const trimmedContent = unescapedContent.replace(/^\n+|\n+$/g, '');
+            
+            return `
+                <div class="agent-tool-card file-card">
+                    <div class="tool-card-header">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span>Create File: <strong class="file-path">${escapeHtml(path)}</strong></span>
+                    </div>
+                    <details class="tool-details">
+                        <summary>View File Content</summary>
+                        <pre class="tool-code-preview"><code class="file-content">${escapeHtml(trimmedContent)}</code></pre>
+                    </details>
+                    <div class="tool-card-actions">
+                        <button class="btn btn-sm btn-primary write-file-tool-btn">Write File</button>
+                    </div>
+                </div>
+            `;
+        });
+
+        // Parse patch_file tag: &lt;patch_file path=&quot;...&quot;&gt;...&lt;/patch_file&gt;
+        html = html.replace(/&lt;patch_file\s+path=(?:&quot;|&#39;|"|')([^"'\n>]+?)(?:&quot;|&#39;|"|')&gt;([\s\S]*?)&lt;\/patch_file&gt;/gi, (match, path, diffBody) => {
+            const searchMatch = diffBody.match(/&lt;search&gt;([\s\S]*?)&lt;\/search&gt;/i);
+            const replaceMatch = diffBody.match(/&lt;replace&gt;([\s\S]*?)&lt;\/replace&gt;/i);
+            
+            if (!searchMatch || !replaceMatch) return match;
+            
+            const searchContent = searchMatch[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+            const replaceContent = replaceMatch[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+            
+            // Build visual diff
+            const searchLines = searchContent.split('\n');
+            const replaceLines = replaceContent.split('\n');
+            
+            let diffLinesHtml = '';
+            searchLines.forEach(l => {
+                if (l.trim()) {
+                    diffLinesHtml += `<div class="diff-line removed">- ${escapeHtml(l)}</div>`;
+                }
+            });
+            replaceLines.forEach(l => {
+                if (l.trim()) {
+                    diffLinesHtml += `<div class="diff-line added">+ ${escapeHtml(l)}</div>`;
+                }
+            });
+            
+            return `
+                <div class="agent-tool-card diff-card">
+                    <div class="tool-card-header">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        <span>Modify File: <strong class="file-path">${escapeHtml(path)}</strong></span>
+                    </div>
+                    <pre class="patch-search" style="display:none;">${escapeHtml(searchContent)}</pre>
+                    <pre class="patch-replace" style="display:none;">${escapeHtml(replaceContent)}</pre>
+                    <div class="diff-viewer">
+                        ${diffLinesHtml}
+                    </div>
+                    <div class="tool-card-actions">
+                        <button class="btn btn-sm btn-primary patch-file-tool-btn">Apply Changes</button>
+                    </div>
+                </div>
+            `;
+        });
+
         // Parse code blocks: ```lang\ncode\n```
         html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
-            const index = activeCodeBlocks.length;
             const trimmedCode = code.replace(/^\n+|\n+$/g, ''); // Trim leading/trailing newlines
-            activeCodeBlocks.push(trimmedCode);
             
             const lowerLang = (lang || '').toLowerCase();
             const terminalLangs = ['bash', 'sh', 'powershell', 'cmd', 'shell', 'zsh'];
             const terminalPrefixes = ['git', 'npm', 'yarn', 'pnpm', 'npx', 'cargo', 'pip', 'python', 'node', 'docker', 'kubectl', 'go', 'make', 'g\\+\\+', 'gcc', 'clang'];
             const isTerminal = terminalLangs.includes(lowerLang) ||
-                               new RegExp('^(' + terminalPrefixes.join('|') + ')\\s', 'i').test(trimmedCode.trim());
-            const runButtonHtml = isTerminal ? `<button class="code-action-btn run-btn" data-index="${index}" style="color: var(--brand-primary); font-weight: bold;">Run</button>` : '';
+                                new RegExp('^(' + terminalPrefixes.join('|') + ')\\s', 'i').test(trimmedCode.trim());
+            const runButtonHtml = isTerminal ? `<button class="code-action-btn run-btn" style="color: var(--brand-primary); font-weight: bold;">Run</button>` : '';
 
             return `
                 <div class="code-block-container">
@@ -312,11 +576,11 @@
                         <span class="code-block-lang">${lang || 'code'}</span>
                         <div class="code-block-actions">
                             ${runButtonHtml}
-                            <button class="code-action-btn copy-btn" data-index="${index}">Copy</button>
-                            <button class="code-action-btn insert-btn" data-index="${index}">Insert</button>
+                            <button class="code-action-btn copy-btn">Copy</button>
+                            <button class="code-action-btn insert-btn">Insert</button>
                         </div>
                     </div>
-                    <pre class="code-block-body"><code>${trimmedCode}</code></pre>
+                    <pre class="code-block-body"><code class="code-content">${trimmedCode}</code></pre>
                 </div>
             `;
         });
@@ -334,7 +598,7 @@
         // Paragraph formatting (double newlines)
         const paragraphs = html.split('\n\n');
         html = paragraphs.map(p => {
-            if (p.trim().startsWith('<div class="code-block-container">') || p.trim().startsWith('<ul>')) {
+            if (p.trim().startsWith('<div class="code-block-container">') || p.trim().startsWith('<div class="agent-tool-card') || p.trim().startsWith('<ul>')) {
                 return p;
             }
             return `<p>${p.trim().replace(/\n/g, '<br>')}</p>`;
@@ -432,6 +696,31 @@
                 isGenerating = false;
                 chatHistory.push({ role: 'assistant', content: activeResponseText });
                 
+                // Auto-save the chat session
+                vscode.postMessage({
+                    command: 'saveChat',
+                    id: activeSessionId,
+                    name: '',
+                    model: selectedModel,
+                    messages: chatHistory
+                });
+
+                // Autopilot execution
+                if (activeAssistantBubble) {
+                    if (appSettings.allowCommands) {
+                        const cmdBtns = activeAssistantBubble.querySelectorAll('.run-cmd-tool-btn');
+                        cmdBtns.forEach(btn => {
+                            btn.click();
+                        });
+                    }
+                    if (appSettings.allowWrite) {
+                        const writeBtns = activeAssistantBubble.querySelectorAll('.write-file-tool-btn, .patch-file-tool-btn');
+                        writeBtns.forEach(btn => {
+                            btn.click();
+                        });
+                    }
+                }
+                
                 // Unlock inputs
                 promptInput.disabled = false;
                 sendBtn.disabled = false;
@@ -456,33 +745,36 @@
                 break;
 
             case 'assistantMessage':
-                // Direct message injected as assistant bubble (e.g. Quick Commit)
                 chatWelcome.style.display = 'none';
                 addMessageBubble('assistant', formatMarkdown(message.content));
                 break;
 
             case 'chatList':
                 renderChatsList(message.chats);
+                if (activeSessionId) {
+                    const exists = message.chats.some(c => c.id === activeSessionId);
+                    if (!exists) {
+                        startNewChat();
+                    }
+                }
                 break;
 
             case 'chatSaved':
-                showToast(`✅ Chat saved: "${message.name.slice(0, 35)}"`);
+                showToast(`✅ Saved: "${message.name.slice(0, 35)}"`);
+                activeSessionId = message.id; // Store active session ID
                 vscode.postMessage({ command: 'listChats' });
                 break;
 
             case 'chatLoaded': {
                 const loadedChat = message.chat;
-                // Clear current chat
                 chatHistory = [];
-                activeCodeBlocks = [];
                 messagesContainer.innerHTML = '';
                 chatWelcome.style.display = 'none';
-                // Restore model
+                activeSessionId = loadedChat.id; // Store loaded session ID
                 if (loadedChat.model) {
                     selectedModel = loadedChat.model;
                     updateStatusBar();
                 }
-                // Replay messages
                 loadedChat.messages.forEach(m => {
                     chatHistory.push(m);
                     addMessageBubble(m.role, m.role === 'assistant' ? formatMarkdown(m.content) : escapeHtml(m.content));
@@ -493,11 +785,28 @@
 
             case 'clearChat':
                 chatHistory = [];
-                activeCodeBlocks = [];
                 messagesContainer.innerHTML = '';
                 chatWelcome.style.display = 'flex';
+                activeSessionId = null; // Clear session ID
                 updateMainView();
                 break;
+
+            case 'settingsUpdate': {
+                const s = message.settings;
+                appSettings = s;
+                if (settingsSystemPrompt) settingsSystemPrompt.value = s.systemPrompt || '';
+                if (settingsTemperature) settingsTemperature.value = s.temperature !== undefined ? s.temperature : 0.2;
+                if (settingsHostUrl) settingsHostUrl.value = s.hostUrl || 'http://127.0.0.1:11434';
+                if (settingsAllowCommands) settingsAllowCommands.checked = !!s.allowCommands;
+                if (settingsAllowWrite) settingsAllowWrite.checked = !!s.allowWrite;
+                if (settingsAllowRead) settingsAllowRead.checked = !!s.allowRead;
+                break;
+            }
+
+            case 'toolExecuted': {
+                showToast(`🔧 Tool ${message.tool} on ${message.path}: ${message.success ? 'Success' : 'Failed'}`);
+                break;
+            }
 
             case 'focusInput':
                 promptInput.focus();

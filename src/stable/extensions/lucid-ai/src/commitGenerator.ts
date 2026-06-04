@@ -85,35 +85,23 @@ export function registerCommitGenerator(context: vscode.ExtensionContext) {
                         controller.abort();
                     });
 
-                    const prompt = `You are an expert developer. Generate EXACTLY ONE clean, conventional Git commit message based on the following diff.
+                    const systemPrompt = `You are a commit message generator.
+Write a single, concise commit message summarizing the code changes.
+Output ONLY the message itself. No markdown, no quotes, no explanations, no lists.`;
 
-Example output:
-feat(auth): add login functionality
-
-- Added email and password fields
-- Integrated login API endpoint
-- Fixed session persistence
-
-Rules:
-1. Generate EXACTLY ONE commit message. Do not generate multiple options.
-2. Format MUST be: type(scope): short description
-3. The first line must be under 72 characters.
-4. Leave one blank line after the title.
-5. Provide a concise bulleted list of what actually changed.
-6. Output ONLY the raw commit message, NO markdown formatting (\`\`\`), NO quotes, NO conversational text.
-7. CRITICAL: Lines starting with '+' were ADDED. Lines starting with '-' were DELETED.
-
-Git diff (${isStaged ? 'staged' : 'unstaged'} changes):
-${safeDiff}`;
+                    const userPrompt = `Code changes:\n${safeDiff}`;
 
                     repository.inputBox.value = 'Thinking...';
                     
-                    const response = await fetch('http://127.0.0.1:11434/api/generate', {
+                    const response = await fetch('http://127.0.0.1:11434/api/chat', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             model: selectedModel,
-                            prompt: prompt,
+                            messages: [
+                                { role: 'system', content: systemPrompt },
+                                { role: 'user', content: userPrompt }
+                            ],
                             stream: true,
                             options: {
                                 num_predict: 250,
@@ -139,8 +127,8 @@ ${safeDiff}`;
                                 if (!line.trim()) continue;
                                 try {
                                     const parsed = JSON.parse(line);
-                                    if (parsed.response) {
-                                        message += parsed.response;
+                                    if (parsed.message && parsed.message.content) {
+                                        message += parsed.message.content;
                                         repository.inputBox.value = message;
                                     }
                                 } catch (e) {

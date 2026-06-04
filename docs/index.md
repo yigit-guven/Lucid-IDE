@@ -40,6 +40,8 @@
   - [Linux](troubleshooting.md#linux)
 - [Other Resources](others.md)
   - [What are reh and reh-web archives?](others.md#reh)
+  - [Discord Server](https://discord.gg/eQ6wPNb6Wt)
+  - [Changelog](../release_notes.md)
 - [Contributing Guidelines](../CONTRIBUTING.md)
 - [Building Lucid IDE](howto-build.md)
 

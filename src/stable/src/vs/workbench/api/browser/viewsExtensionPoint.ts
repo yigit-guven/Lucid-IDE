@@ -420,6 +420,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					id,
 					title: { value: title, original: title },
 					mnemonicTitle: localize('miToggleLucidChat', "&&AI Chat"),
+					keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyA },
 					order
 				} : undefined
 			}, location);

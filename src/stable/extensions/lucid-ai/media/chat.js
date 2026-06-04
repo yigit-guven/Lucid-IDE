@@ -166,22 +166,51 @@
                 const card = e.target.closest('.command-card');
                 const code = card.querySelector('.command-code').textContent;
                 vscode.postMessage({ command: 'runInTerminal', code });
-                e.target.disabled = true;
-                e.target.innerText = 'Running...';
-                e.target.style.opacity = '0.6';
+                const actionArea = card.querySelector('.tool-card-actions');
+                if (actionArea) {
+                    actionArea.innerHTML = `<span class="tool-status accepted">✅ Accepted</span>`;
+                }
             } else if (e.target.classList.contains('write-file-tool-btn')) {
                 const card = e.target.closest('.file-card');
-                const path = card.querySelector('.file-path').textContent;
-                const content = card.querySelector('.file-content').textContent;
+                const path = card.getAttribute('data-path');
+                const blocksJson = card.getAttribute('data-blocks');
+                let content = '';
+                if (blocksJson) {
+                    const blocks = JSON.parse(blocksJson);
+                    const finalLines = [];
+                    blocks.forEach(block => {
+                        if (block.type === 'unchanged') {
+                            block.lines.forEach(l => finalLines.push(l.text));
+                        } else if (block.type === 'edit') {
+                            const cb = card.querySelector(`.hunk-checkbox[data-hunk-id="${block.id}"]`);
+                            const apply = cb ? cb.checked : true;
+                            block.lines.forEach(l => {
+                                if (apply) {
+                                    if (l.type === 'added') {
+                                        finalLines.push(l.text);
+                                    }
+                                } else {
+                                    if (l.type === 'removed') {
+                                        finalLines.push(l.text);
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    content = finalLines.join('\n');
+                } else {
+                    const previewCode = card.querySelector('.file-content');
+                    content = previewCode ? previewCode.textContent : (card.getAttribute('data-proposed') || '');
+                }
                 vscode.postMessage({ command: 'writeFile', path, content });
-                e.target.disabled = true;
-                e.target.innerText = 'Writing...';
-                e.target.style.opacity = '0.6';
+                const actionArea = card.querySelector('.tool-card-actions');
+                if (actionArea) {
+                    actionArea.innerHTML = `<span class="tool-status accepted">✅ Accepted</span>`;
+                }
             } else if (e.target.classList.contains('patch-file-tool-btn')) {
                 const card = e.target.closest('.diff-card');
                 const path = card.querySelector('.file-path').textContent;
                 const search = card.querySelector('.patch-search').textContent;
-                
                 const blocksJson = card.getAttribute('data-blocks');
                 let replace = '';
                 if (blocksJson) {
@@ -210,11 +239,17 @@
                 } else {
                     replace = card.querySelector('.patch-replace').textContent;
                 }
-                
                 vscode.postMessage({ command: 'patchFile', path, search, replace });
-                e.target.disabled = true;
-                e.target.innerText = 'Applying...';
-                e.target.style.opacity = '0.6';
+                const actionArea = card.querySelector('.tool-card-actions');
+                if (actionArea) {
+                    actionArea.innerHTML = `<span class="tool-status accepted">✅ Accepted</span>`;
+                }
+            } else if (e.target.classList.contains('refuse-tool-btn')) {
+                const card = e.target.closest('.agent-tool-card');
+                const actionArea = card.querySelector('.tool-card-actions');
+                if (actionArea) {
+                    actionArea.innerHTML = `<span class="tool-status refused">❌ Refused</span>`;
+                }
             } else if (e.target.classList.contains('hunk-checkbox')) {
                 const hunkContainer = e.target.closest('.diff-hunk-container');
                 if (hunkContainer) {
@@ -472,6 +507,7 @@
         bubble.innerHTML = htmlContent;
         messagesContainer.appendChild(bubble);
         scrollToBottom();
+        initializeFileCards(bubble);
         return bubble;
     }
 
@@ -545,7 +581,19 @@
         return blocks;
     }
 
+    function initializeFileCards(container) {
+        if (!container) return;
+        const fileCards = container.querySelectorAll('.file-card:not(.initialized)');
+        fileCards.forEach(card => {
+            card.classList.add('initialized');
+            const path = card.getAttribute('data-path');
+            const cardId = card.id;
+            vscode.postMessage({ command: 'getFileContent', path: path, cardId: cardId });
+        });
+    }
+
     function formatMarkdown(text) {
+        let writeFileCount = 0;
         // Escape HTML tags to prevent injections, keeping double-escapes safe
         let html = text
             .replace(/&/g, '&amp;')
@@ -590,8 +638,9 @@
                         <span>Execute Terminal Command</span>
                     </div>
                     <pre class="tool-code-preview"><code class="command-code">${escapeHtml(trimmedCmd)}</code></pre>
-                    <div class="tool-card-actions">
-                        <button class="btn btn-sm btn-primary run-cmd-tool-btn">Run Command</button>
+                    <div class="tool-card-actions" style="margin-top: 10px; display: flex; gap: 8px;">
+                        <button class="btn btn-sm btn-success accept-tool-btn run-cmd-tool-btn">Accept</button>
+                        <button class="btn btn-sm btn-danger refuse-tool-btn">Refuse</button>
                     </div>
                 </div>
             `;
@@ -601,19 +650,22 @@
         html = html.replace(/&lt;write_file\s+path=(?:&quot;|&#39;|"|')([^"'\n>]+?)(?:&quot;|&#39;|"|')&gt;([\s\S]*?)&lt;\/write_file&gt;/gi, (match, path, content) => {
             const unescapedContent = content.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
             const trimmedContent = unescapedContent.replace(/^\n+|\n+$/g, '');
+            const cardId = `file_card_${path.replace(/[^a-zA-Z0-9]/g, '_')}_${writeFileCount++}`;
             
             return `
-                <div class="agent-tool-card file-card">
+                <div class="agent-tool-card file-card" id="${cardId}" data-path="${escapeHtml(path)}" data-proposed="${escapeHtml(trimmedContent)}">
                     <div class="tool-card-header">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                        <span>Create File: <strong class="file-path">${escapeHtml(path)}</strong></span>
+                        <span>Write File: <strong class="file-path">${escapeHtml(path)}</strong></span>
                     </div>
-                    <details class="tool-details">
-                        <summary>View File Content</summary>
-                        <pre class="tool-code-preview"><code class="file-content">${escapeHtml(trimmedContent)}</code></pre>
-                    </details>
-                    <div class="tool-card-actions">
-                        <button class="btn btn-sm btn-primary write-file-tool-btn">Write File</button>
+                    <div class="file-diff-container">
+                        <div class="diff-loading" style="padding: 10px; font-size: 11px; opacity: 0.7;">
+                            Comparing with disk...
+                        </div>
+                    </div>
+                    <div class="tool-card-actions" style="display: none; margin-top: 10px; gap: 8px;">
+                        <button class="btn btn-sm btn-success accept-tool-btn write-file-tool-btn">Accept</button>
+                        <button class="btn btn-sm btn-danger refuse-tool-btn">Refuse</button>
                     </div>
                 </div>
             `;
@@ -688,8 +740,9 @@
                     <div class="diff-viewer">
                         ${diffViewerHtml}
                     </div>
-                    <div class="tool-card-actions">
-                        <button class="btn btn-sm btn-primary patch-file-tool-btn">Apply Changes</button>
+                    <div class="tool-card-actions" style="margin-top: 10px; display: flex; gap: 8px;">
+                        <button class="btn btn-sm btn-success accept-tool-btn patch-file-tool-btn">Accept</button>
+                        <button class="btn btn-sm btn-danger refuse-tool-btn">Refuse</button>
                     </div>
                 </div>
             `;
@@ -832,6 +885,10 @@
                 isGenerating = false;
                 chatHistory.push({ role: 'assistant', content: activeResponseText });
                 
+                if (activeAssistantBubble) {
+                    initializeFileCards(activeAssistantBubble);
+                }
+
                 // Auto-save the chat session
                 vscode.postMessage({
                     command: 'saveChat',
@@ -850,8 +907,8 @@
                         });
                     }
                     if (appSettings.allowWrite) {
-                        const writeBtns = activeAssistantBubble.querySelectorAll('.write-file-tool-btn, .patch-file-tool-btn');
-                        writeBtns.forEach(btn => {
+                        const patchBtns = activeAssistantBubble.querySelectorAll('.patch-file-tool-btn');
+                        patchBtns.forEach(btn => {
                             btn.click();
                         });
                     }
@@ -941,6 +998,91 @@
 
             case 'toolExecuted': {
                 showToast(`🔧 Tool ${message.tool} on ${message.path}: ${message.success ? 'Success' : 'Failed'}`);
+                break;
+            }
+
+            case 'fileContentResponse': {
+                const { path, content, exists, cardId } = message;
+                const card = document.getElementById(cardId);
+                if (!card) break;
+                
+                const proposedContent = card.getAttribute('data-proposed') || '';
+                const diffContainer = card.querySelector('.file-diff-container');
+                const actions = card.querySelector('.tool-card-actions');
+                
+                if (exists) {
+                    const currentLines = content.split(/\r?\n/);
+                    const proposedLines = proposedContent.split(/\r?\n/);
+                    const diff = diffLines(currentLines, proposedLines);
+                    const blocks = groupDiff(diff);
+                    
+                    let diffViewerHtml = '';
+                    blocks.forEach(block => {
+                        if (block.type === 'unchanged') {
+                            block.lines.forEach(l => {
+                                diffViewerHtml += `<div class="diff-line unchanged">  ${escapeHtml(l.text)}</div>`;
+                            });
+                        } else if (block.type === 'edit') {
+                            const hasRemoved = block.lines.some(l => l.type === 'removed');
+                            const hasAdded = block.lines.some(l => l.type === 'added');
+                            
+                            let hunkHeaderLabel = 'Modify';
+                            if (!hasRemoved && hasAdded) hunkHeaderLabel = 'Insert';
+                            else if (hasRemoved && !hasAdded) hunkHeaderLabel = 'Delete';
+                            
+                            let hunkLinesHtml = '';
+                            block.lines.forEach(l => {
+                                const sign = l.type === 'added' ? '+' : '-';
+                                hunkLinesHtml += `<div class="diff-line ${l.type}">${sign} ${escapeHtml(l.text)}</div>`;
+                            });
+                            
+                            diffViewerHtml += `
+                                <div class="diff-hunk-container" data-hunk-id="${block.id}">
+                                    <div class="diff-hunk-header">
+                                        <div class="diff-hunk-header-left">
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                            <span>${hunkHeaderLabel}</span>
+                                        </div>
+                                        <label class="diff-hunk-checkbox-label">
+                                            <input type="checkbox" class="hunk-checkbox" data-hunk-id="${block.id}" checked>
+                                            <span>Apply hunk</span>
+                                        </label>
+                                    </div>
+                                    <div class="diff-hunk-body">
+                                        ${hunkLinesHtml}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+                    
+                    const escapedBlocksJson = escapeHtml(JSON.stringify(blocks));
+                    card.setAttribute('data-blocks', escapedBlocksJson);
+                    
+                    diffContainer.innerHTML = `
+                        <div class="diff-viewer">
+                            ${diffViewerHtml}
+                        </div>
+                    `;
+                } else {
+                    diffContainer.innerHTML = `
+                        <div class="new-file-notice" style="padding: 10px; font-size: 11px; font-weight: bold; color: #10b981;">🆕 New File (does not exist on disk)</div>
+                        <details class="tool-details" open style="margin: 0 10px 10px 10px;">
+                            <summary>Proposed File Content</summary>
+                            <pre class="tool-code-preview"><code class="file-content">${escapeHtml(proposedContent)}</code></pre>
+                        </details>
+                    `;
+                }
+                
+                if (actions) {
+                    actions.style.display = 'flex';
+                    if (appSettings.allowWrite) {
+                        const acceptBtn = actions.querySelector('.write-file-tool-btn');
+                        if (acceptBtn) {
+                            acceptBtn.click();
+                        }
+                    }
+                }
                 break;
             }
 

@@ -284,6 +284,29 @@ class ChatViewProvider {
                     }
                     break;
                 }
+                case 'getFileContent': {
+                    const workspaceFolders = vscode.workspace.workspaceFolders;
+                    if (!workspaceFolders || workspaceFolders.length === 0) {
+                        webviewView.webview.postMessage({ command: 'fileContentResponse', path: data.path, content: '', exists: false, cardId: data.cardId });
+                        break;
+                    }
+                    const path = require('path');
+                    const fs = require('fs');
+                    const fullPath = path.join(workspaceFolders[0].uri.fsPath, data.path);
+                    try {
+                        if (fs.existsSync(fullPath)) {
+                            const content = fs.readFileSync(fullPath, 'utf8');
+                            webviewView.webview.postMessage({ command: 'fileContentResponse', path: data.path, content, exists: true, cardId: data.cardId });
+                        }
+                        else {
+                            webviewView.webview.postMessage({ command: 'fileContentResponse', path: data.path, content: '', exists: false, cardId: data.cardId });
+                        }
+                    }
+                    catch (e) {
+                        webviewView.webview.postMessage({ command: 'fileContentResponse', path: data.path, content: '', exists: false, cardId: data.cardId });
+                    }
+                    break;
+                }
             }
         });
         // Check status on load

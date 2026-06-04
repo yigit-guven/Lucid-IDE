@@ -144,6 +144,15 @@ Output ONLY the message itself. No markdown, no quotes, no explanations, no list
                                     const parsed = JSON.parse(line);
                                     if (parsed.message && parsed.message.content) {
                                         message += parsed.message.content;
+                                        
+                                        // Bulletproof fix for 1B models: Kill the connection the millisecond it tries to write a second line
+                                        if (message.includes('\n')) {
+                                            message = message.split('\n')[0].trim();
+                                            repository.inputBox.value = message;
+                                            controller.abort();
+                                            break;
+                                        }
+                                        
                                         repository.inputBox.value = message;
                                     }
                                 } catch (e) {
@@ -151,16 +160,18 @@ Output ONLY the message itself. No markdown, no quotes, no explanations, no list
                                 }
                             }
                         }
+                    } catch (e: any) {
+                        // Ignore abort errors which we trigger intentionally
+                        if (e.name !== 'AbortError' && !e.message?.includes('aborted')) {
+                            throw e;
+                        }
                     }
 
                     message = message.trim();
 
                     // Strip markdown formatting if the model hallucinated it
                     if (message.startsWith('```')) {
-                        const lines = message.split('\n');
-                        if (lines[0].startsWith('```')) lines.shift();
-                        if (lines.length > 0 && lines[lines.length - 1].startsWith('```')) lines.pop();
-                        message = lines.join('\n').trim();
+                        message = message.replace(/```.*/g, '');
                     }
                     if (message.startsWith('"') && message.endsWith('"')) message = message.substring(1, message.length - 1).trim();
                     if (message.startsWith("'") && message.endsWith("'")) message = message.substring(1, message.length - 1).trim();

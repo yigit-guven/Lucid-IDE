@@ -85,14 +85,23 @@ export function registerCommitGenerator(context: vscode.ExtensionContext) {
                         controller.abort();
                     });
 
-                    const prompt = `You are an expert developer. Generate a clean, conventional Git commit message based on the following diff.
+                    const prompt = `You are an expert developer. Generate EXACTLY ONE clean, conventional Git commit message based on the following diff.
+
+Example output:
+feat(auth): add login functionality
+
+- Added email and password fields
+- Integrated login API endpoint
+- Fixed session persistence
+
 Rules:
-1. Format MUST be: type(scope): short description
-2. Type MUST be one of: feat, fix, docs, style, refactor, perf, test, chore.
+1. Generate EXACTLY ONE commit message. Do not generate multiple options.
+2. Format MUST be: type(scope): short description
 3. The first line must be under 72 characters.
 4. Leave one blank line after the title.
 5. Provide a concise bulleted list of what actually changed.
 6. Output ONLY the raw commit message, NO markdown formatting (\`\`\`), NO quotes, NO conversational text.
+7. CRITICAL: Lines starting with '+' were ADDED. Lines starting with '-' were DELETED.
 
 Git diff (${isStaged ? 'staged' : 'unstaged'} changes):
 ${safeDiff}`;

@@ -120,7 +120,8 @@ Output ONLY the message itself. No markdown, no quotes, no explanations, no list
                             stream: true,
                             options: {
                                 num_predict: 250,
-                                temperature: 0.2
+                                temperature: 0.2,
+                                stop: ["\n", "\r"]
                             }
                         }),
                         signal: controller.signal
@@ -131,11 +132,13 @@ Output ONLY the message itself. No markdown, no quotes, no explanations, no list
                     }
 
                     let message = '';
+                    let isDone = false;
                     if (response.body) {
                         repository.inputBox.value = '';
                         const decoder = new TextDecoder();
                         // Support both Node.js streams and Web Streams
                         for await (const chunk of response.body as any) {
+                            if (isDone) break;
                             const text = typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
                             const lines = text.split('\n');
                             for (const line of lines) {
@@ -146,9 +149,10 @@ Output ONLY the message itself. No markdown, no quotes, no explanations, no list
                                         message += parsed.message.content;
                                         
                                         // Bulletproof fix for 1B models: Kill the connection the millisecond it tries to write a second line
-                                        if (message.includes('\n')) {
-                                            message = message.split('\n')[0].trim();
+                                        if (message.match(/[\r\n]/)) {
+                                            message = message.split(/[\r\n]/)[0].trim();
                                             repository.inputBox.value = message;
+                                            isDone = true;
                                             controller.abort();
                                             break;
                                         }

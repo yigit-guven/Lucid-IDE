@@ -23,6 +23,10 @@
     const installProgressContainer = document.getElementById('installProgressContainer');
     const installProgressBar = document.getElementById('installProgressBar');
     const installStatusText = document.getElementById('installStatusText');
+    const ollamaVersionSelect = document.getElementById('ollamaVersionSelect');
+    const installDirInput = document.getElementById('installDirInput');
+    const browseDirBtn = document.getElementById('browseDirBtn');
+    const cancelInstallBtn = document.getElementById('cancelInstallBtn');
     
     const messagesContainer = document.getElementById('messagesContainer');
     const promptInput = document.getElementById('promptInput');
@@ -71,6 +75,16 @@
         if (installBtn) {
             installBtn.addEventListener('click', startOllamaInstall);
         }
+        if (browseDirBtn) {
+            browseDirBtn.addEventListener('click', () => {
+                vscode.postMessage({ command: 'selectInstallDir' });
+            });
+        }
+        if (cancelInstallBtn) {
+            cancelInstallBtn.addEventListener('click', () => {
+                vscode.postMessage({ command: 'cancelInstall' });
+            });
+        }
         statusIndicator.addEventListener('click', checkStatus);
         openManagerBtn.addEventListener('click', openDrawer);
         modelSelectBtn.addEventListener('click', openDrawer);
@@ -84,7 +98,7 @@
             }
         });
 
-        // Event delegation for copy & insert buttons in code blocks
+        // Event delegation for copy, insert & run buttons in code blocks
         messagesContainer.addEventListener('click', (e) => {
             if (e.target.classList.contains('copy-btn')) {
                 const idx = parseInt(e.target.getAttribute('data-index'), 10);
@@ -95,6 +109,11 @@
                 const idx = parseInt(e.target.getAttribute('data-index'), 10);
                 if (activeCodeBlocks[idx]) {
                     vscode.postMessage({ command: 'insertCode', code: activeCodeBlocks[idx] });
+                }
+            } else if (e.target.classList.contains('run-btn')) {
+                const idx = parseInt(e.target.getAttribute('data-index'), 10);
+                if (activeCodeBlocks[idx]) {
+                    vscode.postMessage({ command: 'runInTerminal', code: activeCodeBlocks[idx] });
                 }
             }
         });
@@ -191,11 +210,17 @@
             const trimmedCode = code.replace(/^\n+|\n+$/g, ''); // Trim leading/trailing newlines
             activeCodeBlocks.push(trimmedCode);
             
+            const lowerLang = (lang || '').toLowerCase();
+            const isTerminal = ['bash', 'sh', 'powershell', 'cmd', 'shell', 'zsh'].includes(lowerLang) ||
+                               (trimmedCode.trim().match(/^(git|npm|yarn|pnpm|npx|cargo|pip|python|node|docker|kubectl|go|make|g++|gcc|clang)\s/i));
+            const runButtonHtml = isTerminal ? `<button class="code-action-btn run-btn" data-index="${index}" style="color: var(--brand-primary); font-weight: bold;">Run</button>` : '';
+
             return `
                 <div class="code-block-container">
                     <div class="code-block-header">
                         <span class="code-block-lang">${lang || 'code'}</span>
                         <div class="code-block-actions">
+                            ${runButtonHtml}
                             <button class="code-action-btn copy-btn" data-index="${index}">Copy</button>
                             <button class="code-action-btn insert-btn" data-index="${index}">Insert</button>
                         </div>
@@ -241,6 +266,24 @@
                     installProgressContainer.style.display = 'none';
                 }
                 
+                // Populate default path if empty
+                if (installDirInput && !installDirInput.value && message.defaultPath) {
+                    installDirInput.value = message.defaultPath;
+                }
+
+                // Change button text depending on whether it's locally installed
+                if (installBtn) {
+                    if (message.localInstalled) {
+                        installBtn.innerText = 'Start Ollama';
+                        const setupForm = document.getElementById('setupForm');
+                        if (setupForm) setupForm.style.display = 'none';
+                    } else {
+                        installBtn.innerText = 'Install & Start Ollama';
+                        const setupForm = document.getElementById('setupForm');
+                        if (setupForm) setupForm.style.display = 'flex';
+                    }
+                }
+
                 updateStatusBar();
                 renderModelsDrawer();
                 updateMainView();
@@ -252,6 +295,21 @@
                 
             case 'installError':
                 showInstallError(message.error);
+                break;
+
+            case 'installDirSelected':
+                if (installDirInput) {
+                    installDirInput.value = message.path;
+                }
+                break;
+
+            case 'installCancelled':
+                installProgressContainer.style.display = 'none';
+                installProgressBar.style.width = '0%';
+                installStatusText.innerText = '';
+                installBtn.disabled = false;
+                if (ollamaVersionSelect) ollamaVersionSelect.disabled = false;
+                if (browseDirBtn) browseDirBtn.disabled = false;
                 break;
                 
             case 'pullProgress':
@@ -575,11 +633,22 @@
 
     function startOllamaInstall() {
         installBtn.disabled = true;
+        if (ollamaVersionSelect) ollamaVersionSelect.disabled = true;
+        if (browseDirBtn) browseDirBtn.disabled = true;
+
         installProgressContainer.style.display = 'block';
         installProgressBar.style.width = '0%';
         installProgressBar.style.backgroundColor = 'var(--brand-primary)';
         installStatusText.innerText = 'Initializing...';
-        vscode.postMessage({ command: 'installOllama' });
+
+        const version = ollamaVersionSelect ? ollamaVersionSelect.value : 'latest';
+        const installPath = installDirInput ? installDirInput.value : '';
+
+        vscode.postMessage({ 
+            command: 'installOllama',
+            installPath: installPath,
+            version: version
+        });
     }
 
     function showInstallProgress(percent, statusText) {
@@ -589,6 +658,8 @@
             setTimeout(() => {
                 installProgressContainer.style.display = 'none';
                 installBtn.disabled = false;
+                if (ollamaVersionSelect) ollamaVersionSelect.disabled = false;
+                if (browseDirBtn) browseDirBtn.disabled = false;
             }, 3000);
         }
     }
@@ -597,6 +668,8 @@
         installStatusText.innerText = `Error: ${errorMsg}`;
         installProgressBar.style.backgroundColor = '#f43f5e';
         installBtn.disabled = false;
+        if (ollamaVersionSelect) ollamaVersionSelect.disabled = false;
+        if (browseDirBtn) browseDirBtn.disabled = false;
     }
 
     // Run

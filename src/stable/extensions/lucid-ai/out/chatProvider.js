@@ -3,11 +3,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ChatViewProvider = void 0;
 const vscode = require("vscode");
 class ChatViewProvider {
-    _extensionUri;
+    _context;
     static viewType = 'lucid.chatView';
     _view;
-    constructor(_extensionUri) {
-        this._extensionUri = _extensionUri;
+    _extensionUri;
+    _activeDownloadRequest = null;
+    _activeExtractProcess = null;
+    _tempZipPath = null;
+    _isInstalling = false;
+    constructor(_context) {
+        this._context = _context;
+        this._extensionUri = _context.extensionUri;
     }
     resolveWebviewView(webviewView, context, _token) {
         this._view = webviewView;
@@ -27,7 +33,28 @@ class ChatViewProvider {
                     break;
                 }
                 case 'installOllama': {
-                    await this.installAndStartOllama();
+                    await this.installAndStartOllama(data.installPath, data.version);
+                    break;
+                }
+                case 'cancelInstall': {
+                    this.cancelInstall();
+                    break;
+                }
+                case 'selectInstallDir': {
+                    const uri = await vscode.window.showOpenDialog({
+                        canSelectFiles: false,
+                        canSelectFolders: true,
+                        canSelectMany: false,
+                        openLabel: 'Select Ollama Installation Folder'
+                    });
+                    if (uri && uri[0]) {
+                        const selectedPath = uri[0].fsPath;
+                        await this._context.globalState.update('ollamaInstallPath', selectedPath);
+                        webviewView.webview.postMessage({
+                            command: 'installDirSelected',
+                            path: selectedPath
+                        });
+                    }
                     break;
                 }
                 case 'pullModel': {
@@ -59,6 +86,12 @@ class ChatViewProvider {
                     vscode.window.showInformationMessage('Code copied to clipboard.');
                     break;
                 }
+                case 'runInTerminal': {
+                    const terminal = vscode.window.activeTerminal || vscode.window.createTerminal('AI Terminal');
+                    terminal.show();
+                    terminal.sendText(data.code);
+                    break;
+                }
             }
         });
         // Check status on load
@@ -74,15 +107,98 @@ class ChatViewProvider {
             this._view.webview.postMessage({ command: 'focusInput' });
         }
     }
-    async installAndStartOllama() {
+    cancelInstall() {
+        this._isInstalling = false;
+        if (this._activeDownloadRequest) {
+            try {
+                this._activeDownloadRequest.destroy();
+            }
+            catch (e) { }
+            this._activeDownloadRequest = null;
+        }
+        if (this._activeExtractProcess) {
+            try {
+                this._activeExtractProcess.kill();
+            }
+            catch (e) { }
+            this._activeExtractProcess = null;
+        }
+        if (this._tempZipPath) {
+            try {
+                const fs = require('fs');
+                if (fs.existsSync(this._tempZipPath)) {
+                    fs.unlinkSync(this._tempZipPath);
+                }
+            }
+            catch (e) { }
+        }
+        if (this._view) {
+            this._view.webview.postMessage({
+                command: 'installCancelled',
+                statusText: 'Installation cancelled by user.'
+            });
+        }
+    }
+    async startOllamaProcess(ollamaExePath, targetDir, sendProgress, sendError) {
+        const { spawn } = require('child_process');
+        const path = require('path');
+        const fs = require('fs');
+        const modelsDir = path.join(targetDir, 'models');
+        try {
+            if (!fs.existsSync(modelsDir)) {
+                fs.mkdirSync(modelsDir, { recursive: true });
+            }
+        }
+        catch (e) { }
+        try {
+            const childEnv = {
+                ...process.env,
+                OLLAMA_MODELS: modelsDir
+            };
+            const child = spawn(ollamaExePath, ['serve'], {
+                detached: true,
+                stdio: 'ignore',
+                env: childEnv
+            });
+            child.unref();
+            for (let i = 0; i < 15; i++) {
+                if (!this._isInstalling)
+                    return;
+                await new Promise(r => setTimeout(r, 1000));
+                try {
+                    const check = await fetch('http://127.0.0.1:11434/api/tags');
+                    if (check.ok) {
+                        sendProgress(100, 'Ollama started successfully!');
+                        this._isInstalling = false;
+                        await this.checkOllamaStatus();
+                        return;
+                    }
+                }
+                catch (e) {
+                    // retry
+                }
+            }
+            sendError('Ollama process started, but connection timed out. Try reconnecting.');
+        }
+        catch (e) {
+            sendError('Failed to start Ollama process: ' + e.message);
+        }
+    }
+    async installAndStartOllama(installPath, version) {
         if (!this._view)
             return;
         const webview = this._view.webview;
-        const localAppData = process.env.LOCALAPPDATA || '';
-        const ollamaPath = require('path').join(localAppData, 'Programs', 'Ollama', 'ollama.exe');
+        this._isInstalling = true;
         const fs = require('fs');
+        const path = require('path');
         const { spawn } = require('child_process');
+        const defaultInstallDir = path.join(this._context.extensionUri.fsPath, 'ollama');
+        const targetDir = installPath || this._context.globalState.get('ollamaInstallPath') || defaultInstallDir;
+        await this._context.globalState.update('ollamaInstallPath', targetDir);
+        const ollamaExePath = path.join(targetDir, 'ollama.exe');
         const sendProgress = (percent, statusText) => {
+            if (!this._isInstalling)
+                return;
             webview.postMessage({
                 command: 'installProgress',
                 percent,
@@ -94,49 +210,42 @@ class ChatViewProvider {
                 command: 'installError',
                 error: errMessage
             });
+            this._isInstalling = false;
         };
-        // 1. Check if already installed
-        if (fs.existsSync(ollamaPath)) {
-            sendProgress(50, 'Ollama is installed. Starting Ollama...');
-            try {
-                const child = spawn(ollamaPath, [], {
-                    detached: true,
-                    stdio: 'ignore'
-                });
-                child.unref();
-                for (let i = 0; i < 5; i++) {
-                    await new Promise(r => setTimeout(r, 1000));
-                    try {
-                        const check = await fetch('http://127.0.0.1:11434/api/tags');
-                        if (check.ok) {
-                            sendProgress(100, 'Ollama started successfully!');
-                            await this.checkOllamaStatus();
-                            return;
-                        }
-                    }
-                    catch (e) {
-                        // ignore
-                    }
-                }
-                sendError('Ollama started, but connection timed out. Try reconnecting.');
+        // Ensure target directory exists
+        try {
+            if (!fs.existsSync(targetDir)) {
+                fs.mkdirSync(targetDir, { recursive: true });
             }
-            catch (e) {
-                sendError('Failed to start Ollama: ' + e.message);
-            }
+        }
+        catch (e) {
+            sendError('Failed to create installation directory: ' + e.message);
             return;
         }
-        // 2. Download Installer (with Redirect Following)
-        sendProgress(10, 'Downloading Ollama installer...');
-        const tempDir = require('os').tmpdir();
-        const installerPath = require('path').join(tempDir, 'OllamaSetup.exe');
-        // Delete existing installer if any
+        // 1. Check if already installed
+        if (fs.existsSync(ollamaExePath)) {
+            sendProgress(50, 'Ollama is already installed locally. Starting Ollama...');
+            await this.startOllamaProcess(ollamaExePath, targetDir, sendProgress, sendError);
+            return;
+        }
+        // 2. Prepare ZIP download URL
+        let downloadUrl = 'https://github.com/ollama/ollama/releases/latest/download/ollama-windows-amd64.zip';
+        if (version && version !== 'latest') {
+            const cleanVersion = version.startsWith('v') ? version : 'v' + version;
+            downloadUrl = `https://github.com/ollama/ollama/releases/download/${cleanVersion}/ollama-windows-amd64.zip`;
+        }
+        sendProgress(10, 'Downloading Ollama portable zip...');
+        const tempZipPath = path.join(targetDir, 'ollama_temp.zip');
+        this._tempZipPath = tempZipPath;
         try {
-            if (fs.existsSync(installerPath)) {
-                fs.unlinkSync(installerPath);
+            if (fs.existsSync(tempZipPath)) {
+                fs.unlinkSync(tempZipPath);
             }
         }
         catch (e) { }
         const downloadFile = (url, destPath, onProgress, onEnd, onError, redirectCount = 0) => {
+            if (!this._isInstalling)
+                return;
             if (redirectCount > 5) {
                 onError('Too many redirects');
                 return;
@@ -147,6 +256,13 @@ class ChatViewProvider {
             const parsedUrl = urlLib.parse(url);
             const client = parsedUrl.protocol === 'https:' ? https : http;
             const request = client.get(url, (response) => {
+                if (!this._isInstalling) {
+                    try {
+                        response.destroy();
+                    }
+                    catch (e) { }
+                    return;
+                }
                 if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
                     let redirectUrl = response.headers.location;
                     if (!redirectUrl.startsWith('http')) {
@@ -162,7 +278,19 @@ class ChatViewProvider {
                 const totalSize = parseInt(response.headers['content-length'] || '0', 10);
                 let downloadedSize = 0;
                 const file = fs.createWriteStream(destPath);
+                this._activeDownloadRequest = request;
                 response.on('data', (chunk) => {
+                    if (!this._isInstalling) {
+                        try {
+                            file.end();
+                        }
+                        catch (e) { }
+                        try {
+                            response.destroy();
+                        }
+                        catch (e) { }
+                        return;
+                    }
                     downloadedSize += chunk.length;
                     file.write(chunk);
                     if (totalSize > 0) {
@@ -172,63 +300,59 @@ class ChatViewProvider {
                 });
                 response.on('end', () => {
                     file.end();
-                    onEnd();
+                    this._activeDownloadRequest = null;
+                    if (this._isInstalling) {
+                        onEnd();
+                    }
                 });
                 file.on('error', (err) => {
                     file.end();
+                    this._activeDownloadRequest = null;
                     onError('File write error: ' + err.message);
                 });
             });
+            this._activeDownloadRequest = request;
             request.on('error', (err) => {
+                this._activeDownloadRequest = null;
                 onError('Download network error: ' + err.message);
             });
         };
         try {
-            downloadFile('https://ollama.com/download/OllamaSetup.exe', installerPath, sendProgress, () => {
-                sendProgress(75, 'Installing Ollama silently...');
-                const installProcess = spawn(installerPath, ['/silent', '/nocloseapplications', '/norestart'], {
-                    detached: true,
-                    stdio: 'ignore'
-                });
-                installProcess.on('close', async (code) => {
-                    sendProgress(90, 'Starting Ollama service...');
+            downloadFile(downloadUrl, tempZipPath, sendProgress, () => {
+                if (!this._isInstalling)
+                    return;
+                sendProgress(75, 'Extracting Ollama files (portable)...');
+                const psCommand = `Expand-Archive -Path '${tempZipPath}' -DestinationPath '${targetDir}' -Force`;
+                const extractProcess = spawn('powershell.exe', [
+                    '-NoProfile',
+                    '-NonInteractive',
+                    '-Command',
+                    psCommand
+                ]);
+                this._activeExtractProcess = extractProcess;
+                extractProcess.on('close', async (code) => {
+                    this._activeExtractProcess = null;
+                    if (!this._isInstalling)
+                        return;
                     try {
-                        fs.unlinkSync(installerPath);
+                        fs.unlinkSync(tempZipPath);
                     }
                     catch (e) { }
-                    if (fs.existsSync(ollamaPath)) {
-                        try {
-                            const child = spawn(ollamaPath, [], {
-                                detached: true,
-                                stdio: 'ignore'
-                            });
-                            child.unref();
-                            for (let i = 0; i < 10; i++) {
-                                await new Promise(r => setTimeout(r, 1000));
-                                try {
-                                    const check = await fetch('http://127.0.0.1:11434/api/tags');
-                                    if (check.ok) {
-                                        sendProgress(100, 'Ollama installed and started!');
-                                        await this.checkOllamaStatus();
-                                        return;
-                                    }
-                                }
-                                catch (e) {
-                                    // retry
-                                }
-                            }
-                            sendError('Installation completed, but Ollama timed out on start. Try launching it manually.');
-                        }
-                        catch (e) {
-                            sendError('Installed but failed to start: ' + e.message);
-                        }
+                    if (code !== 0) {
+                        sendError(`Extraction failed with code ${code}. Powershell was unable to extract the zip file.`);
+                        return;
+                    }
+                    if (fs.existsSync(ollamaExePath)) {
+                        sendProgress(90, 'Starting local Ollama process...');
+                        await this.startOllamaProcess(ollamaExePath, targetDir, sendProgress, sendError);
                     }
                     else {
-                        sendError('Installation finished, but executable not found at: ' + ollamaPath);
+                        sendError('Extraction completed, but ollama.exe was not found at: ' + ollamaExePath);
                     }
                 });
-                installProcess.on('error', (err) => {
-                    sendError('Installer execution failed: ' + err.message);
+                extractProcess.on('error', (err) => {
+                    this._activeExtractProcess = null;
+                    sendError('Failed to run extractor process: ' + err.message);
                 });
             }, sendError);
         }
@@ -239,6 +363,11 @@ class ChatViewProvider {
     async checkOllamaStatus() {
         if (!this._view)
             return;
+        const path = require('path');
+        const fs = require('fs');
+        const defaultInstallDir = path.join(this._context.extensionUri.fsPath, 'ollama');
+        const savedPath = this._context.globalState.get('ollamaInstallPath') || defaultInstallDir;
+        const localInstalled = fs.existsSync(path.join(savedPath, 'ollama.exe'));
         try {
             const response = await fetch('http://127.0.0.1:11434/api/tags');
             if (response.ok) {
@@ -251,14 +380,18 @@ class ChatViewProvider {
                 this._view.webview.postMessage({
                     command: 'statusUpdate',
                     connected: true,
-                    models: models
+                    models: models,
+                    localInstalled: localInstalled,
+                    defaultPath: savedPath
                 });
             }
             else {
                 this._view.webview.postMessage({
                     command: 'statusUpdate',
                     connected: false,
-                    models: []
+                    models: [],
+                    localInstalled: localInstalled,
+                    defaultPath: savedPath
                 });
             }
         }
@@ -266,7 +399,9 @@ class ChatViewProvider {
             this._view.webview.postMessage({
                 command: 'statusUpdate',
                 connected: false,
-                models: []
+                models: [],
+                localInstalled: localInstalled,
+                defaultPath: savedPath
             });
         }
     }
@@ -356,12 +491,65 @@ class ChatViewProvider {
         if (!this._view)
             return;
         try {
+            // Gather workspace context
+            let workspaceContext = '';
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (workspaceFolders && workspaceFolders.length > 0) {
+                const cwd = workspaceFolders[0].uri.fsPath;
+                workspaceContext += `Active Project/Workspace: ${workspaceFolders[0].name}\nWorkspace Path: ${cwd}\n`;
+                // Gather git context
+                try {
+                    const { execSync } = require('child_process');
+                    const status = execSync('git status --short', { cwd, encoding: 'utf8', timeout: 2000 });
+                    if (status.trim()) {
+                        workspaceContext += `\nGit Status (Modified Files):\n${status}\n`;
+                        let diff = execSync('git diff', { cwd, encoding: 'utf8', timeout: 2000 });
+                        if (!diff.trim()) {
+                            diff = execSync('git diff --cached', { cwd, encoding: 'utf8', timeout: 2000 });
+                        }
+                        if (diff.trim()) {
+                            const maxDiffLen = 5000;
+                            const truncatedDiff = diff.length > maxDiffLen ? diff.substring(0, maxDiffLen) + '\n[Diff truncated due to size limit...]' : diff;
+                            workspaceContext += `\nGit Diff:\n\`\`\`diff\n${truncatedDiff}\n\`\`\`\n`;
+                        }
+                    }
+                    else {
+                        workspaceContext += `\nGit Status: No changes detected.\n`;
+                    }
+                }
+                catch (e) {
+                    // Not a git repository or git command failed
+                }
+            }
+            else {
+                workspaceContext += `Active Workspace: None (single file mode)\n`;
+            }
+            // Gather editor context
+            const activeEditor = vscode.window.activeTextEditor;
+            if (activeEditor) {
+                const doc = activeEditor.document;
+                workspaceContext += `Currently Open File: ${doc.fileName}\nLanguage: ${doc.languageId}\n`;
+                const selection = activeEditor.selection;
+                if (!selection.isEmpty) {
+                    const selectedText = doc.getText(selection);
+                    workspaceContext += `Selected code in active file:\n\`\`\`${doc.languageId}\n${selectedText}\n\`\`\`\n`;
+                }
+            }
+            // Create system prompt
+            const systemPromptContent = `You are the built-in AI assistant for Lucid IDE (a modern developer tool). You are pair programming with the user.
+Here is the context about the user's environment to help you answer:
+${workspaceContext}
+Please utilize this context to help answer user queries about their files, code, and project. Answer in a helpful, concise manner.`;
+            const messagesWithContext = [
+                { role: 'system', content: systemPromptContent },
+                ...messages
+            ];
             const response = await fetch('http://127.0.0.1:11434/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: model,
-                    messages: messages,
+                    messages: messagesWithContext,
                     stream: true
                 })
             });
@@ -462,6 +650,29 @@ class ChatViewProvider {
                             <div class="setup-notice" id="setupNotice">
                                 <h3>Local AI Setup Needed</h3>
                                 <p>This IDE connects to a local instance of <strong>Ollama</strong> to run AI models on your own machine.</p>
+                                
+                                <!-- Customization Form -->
+                                <div class="setup-form" id="setupForm" style="margin-top: 12px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px;">
+                                    <div class="form-group" style="display: flex; flex-direction: column; gap: 4px;">
+                                        <label style="font-size: 9px; font-weight: 600; opacity: 0.8; letter-spacing: 0.5px;">OLLAMA VERSION</label>
+                                        <select id="ollamaVersionSelect" style="background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-settings-textInputBorder, var(--glass-border)); padding: 4px 6px; border-radius: 4px; font-size: 11px; outline: none; font-family: inherit;">
+                                            <option value="latest">Latest Release (Recommended)</option>
+                                            <option value="0.5.4">v0.5.4</option>
+                                            <option value="0.4.4">v0.4.4</option>
+                                            <option value="0.3.14">v0.3.14</option>
+                                            <option value="0.2.1">v0.2.1</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="display: flex; flex-direction: column; gap: 4px;">
+                                        <label style="font-size: 9px; font-weight: 600; opacity: 0.8; letter-spacing: 0.5px;">INSTALL DIRECTORY</label>
+                                        <div style="display: flex; gap: 4px; align-items: center;">
+                                            <input type="text" id="installDirInput" style="flex: 1; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-settings-textInputBorder, var(--glass-border)); padding: 4px 6px; border-radius: 4px; font-size: 11px; outline: none; font-family: inherit;" readonly>
+                                            <button class="btn btn-secondary" id="browseDirBtn" style="padding: 4px 8px; font-size: 11px; white-space: nowrap;">Browse...</button>
+                                        </div>
+                                        <span style="font-size: 9px; opacity: 0.6; line-height: 1.2;">Default: inside Lucid IDE folders (portable mode).</span>
+                                    </div>
+                                </div>
+
                                 <div class="setup-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
                                     <button class="btn btn-primary" id="installBtn" style="flex: 1; white-space: nowrap;">Install & Start Ollama</button>
                                     <button class="btn btn-secondary" id="reconnectBtn">Reconnect</button>
@@ -470,7 +681,10 @@ class ChatViewProvider {
                                     <div class="progress-bar-bg" style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-bottom: 6px;">
                                         <div class="progress-bar-fill" id="installProgressBar" style="width: 0%; height: 100%; background: var(--brand-primary); transition: width 0.3s;"></div>
                                     </div>
-                                    <p id="installStatusText" style="font-size: 10px; opacity: 0.8; text-align: center; margin: 0; word-break: break-word;">Initializing installation...</p>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; gap: 8px;">
+                                        <p id="installStatusText" style="font-size: 10px; opacity: 0.8; margin: 0; word-break: break-all; flex: 1; line-height: 1.2;">Initializing installation...</p>
+                                        <button class="btn btn-sm btn-danger" id="cancelInstallBtn" style="padding: 2px 6px; font-size: 9px; white-space: nowrap;">Cancel</button>
+                                    </div>
                                 </div>
                             </div>
 

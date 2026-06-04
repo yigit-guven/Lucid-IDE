@@ -6,10 +6,6 @@ interface OllamaModelResponse {
     }[];
 }
 
-interface OllamaGenerateResponse {
-    response: string;
-}
-
 export function registerCommitGenerator(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('lucid.scm.generateCommit', async (uri?: any) => {
@@ -35,10 +31,8 @@ export function registerCommitGenerator(context: vscode.ExtensionContext) {
 
                 // 3. Get repository diff (cached/staged first, fallback to working tree)
                 let diff = await repository.diff(true);
-                let isStaged = true;
                 if (!diff || diff.trim() === '') {
                     diff = await repository.diff(false);
-                    isStaged = false;
                 }
 
                 if (!diff || diff.trim() === '') {
@@ -133,34 +127,36 @@ Output ONLY the message itself. No markdown, no quotes, no explanations, no list
 
                     let message = '';
                     let isDone = false;
-                    if (response.body) {
-                        repository.inputBox.value = '';
-                        const decoder = new TextDecoder();
-                        // Support both Node.js streams and Web Streams
-                        for await (const chunk of response.body as any) {
-                            if (isDone) break;
-                            const text = typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
-                            const lines = text.split('\n');
-                            for (const line of lines) {
-                                if (!line.trim()) continue;
-                                try {
-                                    const parsed = JSON.parse(line);
-                                    if (parsed.message && parsed.message.content) {
-                                        message += parsed.message.content;
-                                        
-                                        // Bulletproof fix for 1B models: Kill the connection the millisecond it tries to write a second line
-                                        if (message.match(/[\r\n]/)) {
-                                            message = message.split(/[\r\n]/)[0].trim();
+                    try {
+                        if (response.body) {
+                            repository.inputBox.value = '';
+                            const decoder = new TextDecoder();
+                            // Support both Node.js streams and Web Streams
+                            for await (const chunk of response.body as any) {
+                                if (isDone) break;
+                                const text = typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
+                                const lines = text.split('\n');
+                                for (const line of lines) {
+                                    if (!line.trim()) continue;
+                                    try {
+                                        const parsed = JSON.parse(line);
+                                        if (parsed.message && parsed.message.content) {
+                                            message += parsed.message.content;
+                                            
+                                            // Bulletproof fix for 1B models: Kill the connection the millisecond it tries to write a second line
+                                            if (message.match(/[\r\n]/)) {
+                                                message = message.split(/[\r\n]/)[0].trim();
+                                                repository.inputBox.value = message;
+                                                isDone = true;
+                                                controller.abort();
+                                                break;
+                                            }
+                                            
                                             repository.inputBox.value = message;
-                                            isDone = true;
-                                            controller.abort();
-                                            break;
                                         }
-                                        
-                                        repository.inputBox.value = message;
+                                    } catch (e) {
+                                        // Ignore partial JSON chunks
                                     }
-                                } catch (e) {
-                                    // Ignore partial JSON chunks
                                 }
                             }
                         }
@@ -180,7 +176,16 @@ Output ONLY the message itself. No markdown, no quotes, no explanations, no list
                     if (message.startsWith('"') && message.endsWith('"')) message = message.substring(1, message.length - 1).trim();
                     if (message.startsWith("'") && message.endsWith("'")) message = message.substring(1, message.length - 1).trim();
 
-                    repository.inputBox.value = message;
+                    // Extract only the first line/sentence
+                    let firstLine = message.split(/[\r\n]+/)[0].trim();
+                    
+                    // If it contains bullet markers or markdown bold, clean them up
+                    firstLine = firstLine.replace(/^\s*[\*\-\•\+\>]\s*/, ''); // Remove leading list bullets
+                    firstLine = firstLine.replace(/^\s*\d+\.\s*/, ''); // Remove leading numbered list item
+                    firstLine = firstLine.replace(/\*\*/g, ''); // Remove bold markdown formatting
+                    firstLine = firstLine.trim();
+
+                    repository.inputBox.value = firstLine;
                 });
 
             } catch (err: any) {

@@ -7,6 +7,9 @@
       "es2022",
       "dom"
     ],
+    "types": [
+      "node"
+    ],
     "sourceMap": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,

@@ -20,4 +20,6 @@ stores/snapcraft/stable/*.snap
 font-size/node_modules/
 font-size/generate-css.js
 *.log
+node_modules/
+package-lock.json
 

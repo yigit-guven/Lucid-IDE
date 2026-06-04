@@ -1,7 +1,40 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerCommitGenerator = registerCommitGenerator;
-const vscode = require("vscode");
+const vscode = __importStar(require("vscode"));
 function registerCommitGenerator(context) {
     context.subscriptions.push(vscode.commands.registerCommand('lucid.scm.generateCommit', async (uri) => {
         try {
@@ -23,10 +56,8 @@ function registerCommitGenerator(context) {
             }
             // 3. Get repository diff (cached/staged first, fallback to working tree)
             let diff = await repository.diff(true);
-            let isStaged = true;
             if (!diff || diff.trim() === '') {
                 diff = await repository.diff(false);
-                isStaged = false;
             }
             if (!diff || diff.trim() === '') {
                 vscode.window.showWarningMessage('No changes detected in SCM to generate a commit message.');
@@ -57,6 +88,23 @@ function registerCommitGenerator(context) {
             if (diff.length > MAX_DIFF) {
                 safeDiff = diff.substring(0, MAX_DIFF) + '\n\n... (Diff truncated due to extreme length)';
             }
+            // Parse the diff into clean English so tiny models (1B) don't get confused by diff syntax
+            const lines = safeDiff.split('\n');
+            let parsedDiff = '';
+            for (const line of lines) {
+                if (line.startsWith('+++ b/')) {
+                    parsedDiff += `\nFile changed: ${line.substring(6)}\n`;
+                }
+                else if (line.startsWith('+') && !line.startsWith('+++')) {
+                    parsedDiff += `[ADDED] ${line.substring(1).trim()}\n`;
+                }
+                else if (line.startsWith('-') && !line.startsWith('---')) {
+                    parsedDiff += `[REMOVED] ${line.substring(1).trim()}\n`;
+                }
+            }
+            parsedDiff = parsedDiff.trim();
+            if (!parsedDiff)
+                parsedDiff = safeDiff; // Fallback
             // 6. Generate message using local AI model
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
@@ -67,46 +115,92 @@ function registerCommitGenerator(context) {
                 token.onCancellationRequested(() => {
                     controller.abort();
                 });
-                const prompt = `You are an expert developer. Generate a clean, conventional Git commit message based on the following diff.
-Rules:
-1. Format MUST be: type(scope): short description
-2. Type MUST be one of: feat, fix, docs, style, refactor, perf, test, chore.
-3. The first line must be under 72 characters.
-4. Leave one blank line after the title.
-5. Provide a concise bulleted list of what actually changed.
-6. Output ONLY the raw commit message, NO markdown formatting (\`\`\`), NO quotes, NO conversational text.
-
-Git diff (${isStaged ? 'staged' : 'unstaged'} changes):
-${safeDiff}`;
-                const response = await fetch('http://127.0.0.1:11434/api/generate', {
+                const systemPrompt = `You are a commit message generator.
+Write a single, concise commit message summarizing the code changes.
+Output ONLY the message itself. No markdown, no quotes, no explanations, no lists.`;
+                const userPrompt = `Code changes:\n${parsedDiff}`;
+                repository.inputBox.value = 'Thinking...';
+                const response = await fetch('http://127.0.0.1:11434/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         model: selectedModel,
-                        prompt: prompt,
-                        stream: false
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: userPrompt }
+                        ],
+                        stream: true,
+                        options: {
+                            num_predict: 250,
+                            temperature: 0.2,
+                            stop: ["\n", "\r"]
+                        }
                     }),
                     signal: controller.signal
                 });
                 if (!response.ok) {
                     throw new Error(`Ollama response error: ${response.statusText}`);
                 }
-                const data = await response.json();
-                let message = data.response.trim();
+                let message = '';
+                let isDone = false;
+                try {
+                    if (response.body) {
+                        repository.inputBox.value = '';
+                        const decoder = new TextDecoder();
+                        // Support both Node.js streams and Web Streams
+                        for await (const chunk of response.body) {
+                            if (isDone)
+                                break;
+                            const text = typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
+                            const lines = text.split('\n');
+                            for (const line of lines) {
+                                if (!line.trim())
+                                    continue;
+                                try {
+                                    const parsed = JSON.parse(line);
+                                    if (parsed.message && parsed.message.content) {
+                                        message += parsed.message.content;
+                                        // Bulletproof fix for 1B models: Kill the connection the millisecond it tries to write a second line
+                                        if (message.match(/[\r\n]/)) {
+                                            message = message.split(/[\r\n]/)[0].trim();
+                                            repository.inputBox.value = message;
+                                            isDone = true;
+                                            controller.abort();
+                                            break;
+                                        }
+                                        repository.inputBox.value = message;
+                                    }
+                                }
+                                catch (e) {
+                                    // Ignore partial JSON chunks
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (e) {
+                    // Ignore abort errors which we trigger intentionally
+                    if (e.name !== 'AbortError' && !e.message?.includes('aborted')) {
+                        throw e;
+                    }
+                }
+                message = message.trim();
                 // Strip markdown formatting if the model hallucinated it
                 if (message.startsWith('```')) {
-                    const lines = message.split('\n');
-                    if (lines[0].startsWith('```'))
-                        lines.shift();
-                    if (lines.length > 0 && lines[lines.length - 1].startsWith('```'))
-                        lines.pop();
-                    message = lines.join('\n').trim();
+                    message = message.replace(/```.*/g, '');
                 }
                 if (message.startsWith('"') && message.endsWith('"'))
                     message = message.substring(1, message.length - 1).trim();
                 if (message.startsWith("'") && message.endsWith("'"))
                     message = message.substring(1, message.length - 1).trim();
-                repository.inputBox.value = message;
+                // Extract only the first line/sentence
+                let firstLine = message.split(/[\r\n]+/)[0].trim();
+                // If it contains bullet markers or markdown bold, clean them up
+                firstLine = firstLine.replace(/^\s*[\*\-\•\+\>]\s*/, ''); // Remove leading list bullets
+                firstLine = firstLine.replace(/^\s*\d+\.\s*/, ''); // Remove leading numbered list item
+                firstLine = firstLine.replace(/\*\*/g, ''); // Remove bold markdown formatting
+                firstLine = firstLine.trim();
+                repository.inputBox.value = firstLine;
             });
         }
         catch (err) {
